@@ -1,5 +1,9 @@
 ## DynamoDM: Simple Document Mapper for DynamoDB
 
+[![CI](https://github.com/autopulated/DynamoDM/actions/workflows/test.yml/badge.svg)](https://github.com/autopulated/DynamoDM/actions/workflows/test.yml)
+[![NPM version](https://img.shields.io/npm/v/dynamodm.svg?style=flat)](https://www.npmjs.com/package/dynamodm)
+
+
 ## Quickstart:
 ```js
 const DynamoDM =  require('dynamodm')();
@@ -59,11 +63,12 @@ DynamoDB's scalability, performance, and low cost.
 The simple API is inspired by [Mongoose](https://mongoosejs.com), but there are
 many differences between MongoDB and DynamoDB, in particular when it comes to
 querying documents: DynamDB's indexing and query capabilities are much more
-limited, 
+limited.
 
 
 ## API
 ...
+
 
 ### Sponsors
 This project is supported by:
