@@ -1,6 +1,6 @@
 {
   "name": "dynamodm",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Simple Document mapper for DynamoDB, inspired by mongoose.",
   "main": "index.js",
   "scripts": {
@@ -8,7 +8,7 @@
     "lint": "./node_modules/.bin/eslint -c .eslintrc.json './{,!(node_modules)/**/}*.js'"
   },
   "files": [
-      "index.js"
+    "index.js"
   ],
   "keywords": [
     "dynamodb",
