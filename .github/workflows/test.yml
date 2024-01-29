@@ -1,0 +1,38 @@
+name: test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "*" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      dynamodb-local:
+        image: amazon/dynamodb-local:latest
+        ports:
+          - 8000:8000
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: install deps
+        run: npm ci
+
+      - name: lint
+        run: npm run-script lint
+
+      - name: test
+        run: npm run-script test
+        env:
+          AWS_REGION: eu-west-1
+          AWS_ACCESS_KEY_ID: dummy
+          AWS_SECRET_ACCESS_KEY: dummy
+
