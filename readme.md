@@ -1,7 +1,7 @@
 ## DynamoDM: Simple Document Mapper for DynamoDB
 
 ## Quickstart:
-```
+```js
 const DynamoDM =  require('dynamodm')();
 
 const table = DynamoDM.Table('my-dynamodb-table');
