@@ -6,38 +6,43 @@
 
 ## Quickstart:
 ```js
-const DynamoDM =  require('dynamodm')();
+import DynamoDM from 'dynamodm';
 
-const table = DynamoDM.Table('my-dynamodb-table');
+// get an instance of the API (options can be passed here)
+const ddm = DynamoDM();
+
+// get a reference to a DynamoDM table:
+const table = ddm.Table({name: 'my-dynamodb-table'});
 
 // Create a User model with a JSON schema:
-const UserModel = table.model(DynamoDM.Schema('user', {
+const UserModel = table.model(ddm.Schema('user', {
     properties: {
         // Identify the id field using the built-in schema. Every model in the same table must share the same id field name:
-        id: DynamoDM.DocIdField,
+        id: ddm.DocIdField,
         emailAddress: {type: 'string'},
         marketingComms: {type: 'boolean', default: false}
     },
 }));
 // and a Comment model:
-const CommentModel = table.model(DynamoDM.Schema('c', {
+const CommentModel = table.model(ddm.Schema('c', {
     properties: {
-        id: DynamoDM.DocIdField,
-        createdAt: DynamoDM.CreatedAtField,
+        id: ddm.DocIdField,
+        createdAt: ddm.CreatedAtField,
         text: {type: 'string' },
-        user: DynamoDM.DocId
+        user: ddm.DocId
     },
     additionalProperties: true
-}, index: {
-    findByUser: {
-        hashKey: 'user',
-        sortKey: 'createdAt'
+}, {
+    index: {
+        findByUser: {
+            hashKey: 'user',
+            sortKey: 'createdAt'
+        }
     }
 }));
 
 // wait for the table to be ready (created if necessary, creation of index):
 await table.ready();
-
 
 // create some documents (instances of models):
 const aUser = new UserModel({emailAddress:"friend@example.com"});
