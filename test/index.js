@@ -125,7 +125,7 @@ t.test('promiseAllWithCancellation', async t => {
 });
 
 t.test('incorrect usage throws', async t => {
-    const DynamoDMConstructor = require('../../dynamodm');
+    const DynamoDMConstructor = require('../');
     t.throws(() => {
         DynamoDMConstructor.Table({name: 'test-table-1'});
     }, {message: "DynamoDM must be called as a function to get an instance of the API, e.g. const DynamoDM = require('dynamodm')(options);"}, 'DynamoDM.Table() throws');
@@ -151,7 +151,7 @@ t.test('table initialisation', async t => {
     });
 
     await t.test('with abstract logger', async t => {
-        const table = require('../../dynamodm')({logger: false}).Table({ name: 'test-table-2', clientOptions});
+        const table = require('../')({logger: false}).Table({ name: 'test-table-2', clientOptions});
         table.model(DynamoDM.Schema('emptySchema'));
         await table.ready();
 
