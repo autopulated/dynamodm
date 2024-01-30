@@ -11,49 +11,51 @@ import DynamoDM from 'dynamodm';
 // get an instance of the API (options can be passed here)
 const ddm = DynamoDM();
 
-// get a reference to a DynamoDM table:
+// get a reference to a table:
 const table = ddm.Table({name: 'my-dynamodb-table'});
 
-// Create a User model with a JSON schema:
-const UserModel = table.model(ddm.Schema('user', {
+// Create User and Comment models with their JSON schemas in this table:
+const UserSchema = ddm.Schema('user', {
     properties: {
-        // Identify the id field using the built-in schema. Every model in the same table must share the same id field name:
-        id: ddm.DocIdField,
         emailAddress: {type: 'string'},
         marketingComms: {type: 'boolean', default: false}
     },
-}));
-// and a Comment model:
-const CommentModel = table.model(ddm.Schema('c', {
+});
+
+const CommentSchema = ddm.Schema('c', {
     properties: {
-        id: ddm.DocIdField,
-        createdAt: ddm.CreatedAtField,
         text: {type: 'string' },
-        user: ddm.DocId
+        user: ddm.DocId,
+        // identify a field to be used as the creation timestamp using a
+        // built-in schema:
+        createdAt: ddm.CreatedAtField
     },
     additionalProperties: true
 }, {
+    // The schema also defines the indexes (GSI) that this model needs:
     index: {
         findByUser: {
             hashKey: 'user',
             sortKey: 'createdAt'
         }
     }
-}));
+})
 
-// wait for the table to be ready (created if necessary, creation of index):
+const User = table.model(UserSchema);
+const Comment = table.model(CommentSchema);
+
+// wait for the table to be ready, all models should be added first.
 await table.ready();
 
 // create some documents (instances of models):
-const aUser = new UserModel({emailAddress:"friend@example.com"});
+const aUser = new User({ emailAddress: "friend@example.com" });
 await aUser.save();
 
-const aComment = new CommentModel({user: aUser.id, text: "My first comment."});
+const aComment = new Comment({ user: aUser.id, text: "My first comment." });
 await aComment.save();
 
 // query for some documents:
-const commentsForUser = await CommentModel.queryMany({user: aUser.id});
-
+const commentsForUser = await Comment.queryMany({ user: aUser.id });
 ```
 
 ## Philosophy
