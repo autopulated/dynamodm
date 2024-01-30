@@ -186,40 +186,6 @@ const deepCloneObjectsAndArrays = (v) => {
     }
 };
 
-// helper function so we can do Promise.all(iterableOfPromises) with early cancellation by another promise (which may resolve or reject)
-async function promiseAllWithCancellation(iterable, cancellation) {
-    if (cancellation) {
-        if (typeof cancellation.then !== 'function') {
-            throw new TypeError('Cancellation must be thenable.');
-        }
-        let cancelled = false, resolved = false;
-        let cancellationValue, resolvedValue, rejectedValue;
-        await Promise.race((function*() {
-            yield Promise.all(iterable).then(
-                (v) => {resolvedValue = v; resolved = true;},
-                (e) => rejectedValue = e
-            );
-            yield cancellation.then(
-                (v) => {cancelled = true; cancellationValue = v;},
-                (e) => {cancelled = true; cancellationValue = e;}
-            );
-        })());
-        if (cancelled) {
-            if (cancellationValue instanceof Error) {
-                throw cancellationValue;
-            } else {
-                throw new Error('Operation cancelled.');
-            }
-        } else if (resolved) {
-            return resolvedValue;
-        } else {
-            throw rejectedValue;
-        }
-    } else {
-        return Promise.all(iterable);
-    }
-}
-
 const indexDescriptionsEqual = (a, b) => {
     // TODO: not comparing NonKeyAttributes here, but should be
     return a && b &&
@@ -645,10 +611,6 @@ class BaseModel {
     //  * using options.abortSignal (from an AbortController) for cancellation, and passing this through to the underlying AWS command send() calls.
     //  * queryMany supports options.limit
     //  * queryMany is the preferred option, queryIterator might be added...
-    //  * TODO startAfter option: the dynamodb 'LastEvaluatedKey' is the primary key value of the index which is being scanned, and might include the table PK and SK as well? It should be possible to construct LastEvaluatedKey though.
-    //      * alternatively, could have a 'skip' but there is no efficient way to implement 'skip', so this is probably a bad idea.
-    //
-    //  * cancelling is hard for a user to use... they would need to wrap everything in try...finally, and ensure no other fallible operations are attempted within the finally block, it's much nicer for most users to return a complete array of the requested results, up to a specified limit, after a possible continuation token from a previous call, and return a continuation token for the further pagination too, hence favouring the queryMany over a queryIterator API
     //
     // implemented = x
     //
@@ -659,9 +621,9 @@ class BaseModel {
     // x async .queryManyIds(query, options) -> [id, ...]
     //   async .queryIteratorIds(query, ?options) -> async iterator (id)
     //   async Raw queries only support ids:
-    //   async .rawQueryOneId(options) -> id
-    //   async .rawQueryManyIds(options) -> [id, ...]
-    //   async .rawQueryIteratorIds(options, cancelationPromise) -> async iterator (id)
+    // x async .rawQueryOneId(options) -> id
+    // x async .rawQueryManyIds(options) -> [id, ...]
+    // x async .rawQueryIteratorIds(options, cancelationPromise) -> async iterator (id)
 
     // Query API Methods:
     // For all non-ids methods a separate request is required to fetch the models, rather than just their IDs, which uses options from options.rawFetchOptions
@@ -708,7 +670,7 @@ class BaseModel {
     // }
     static async queryMany(query, options) {
         let {rawQueryOptions, rawFetchOptions, ...otherOptions} = options ?? {};
-        // TODO: schema for otherOptions which assigns default limit, checks types of cancelled, cancel, limit
+        // TODO: schema for options which assigns default limit, checks types
         otherOptions = Object.assign({limit: 50}, otherOptions);
 
         // returns an array of models (possibly empty)
@@ -741,21 +703,29 @@ class BaseModel {
     // static async* queryIteratorIds(query, options) {
     // }
 
-    // TODO: deprecate other query APIs, but keep rawQueryIds? Rename rawQueryIteratorIds?
-    static async* rawQueryIds({KeyConditionExpression, ExpressionAttributeNames, ExpressionAttributeValues, IndexName, sendOptions, ...otherOptions}) {
-        yield* BaseModel.#rawQueryIds(this, {
-            KeyConditionExpression, ExpressionAttributeNames, ExpressionAttributeValues, IndexName, sendOptions, ...otherOptions
-        });
+    static async rawQueryOneId(rawQuery, options) {
+        return BaseModel.#rawQueryOneId(this, rawQuery, options);
     }
-    static async* rawQuery(options) { yield* BaseModel.#rawQuery(this, options); }
-    static async rawQueryOneId(options) { return BaseModel.#rawQueryOneId(this, options); }
-    static async rawQueryOne(options) { return BaseModel.#rawQueryOne(this, options); }
-    static async* listAllIds(options) { yield* BaseModel.#listAllIds(this, options); }
-    static async* query(query, options) {
-        this[kModelLogger].warn({query}, 'Deprecation: query* is deprecated in favour of queryMany');
-        yield* BaseModel.#query(this, query, options);
+    static async rawQueryManyIds(rawQuery, options) {
+        // TODO: schema for options which assigns default limit, checks types
+        options = Object.assign({limit: 50}, options);
+        const results = [];
+        rawQuery = {
+            TableName: this[kModelTable].name,
+            ...rawQuery
+        };
+        for await (const batch of BaseModel.#rawQueryIdsBatchIterator(this, rawQuery, options)) {
+            results.push(batch);
+        }
+        return results.flat();
+    }
+    static async* rawQueryIteratorIds(rawQuery, options) {
+        options = Object.assign({limit: Infinity}, options);
+        yield* BaseModel.#rawQueryIds(this, rawQuery, options);
     }
 
+    // TODO: not sure if some sort of list-all-ids query shortcut should exist?
+    // static async* listAllIds(options) { yield* BaseModel.#listAllIds(this, options); }
 
     // private methods:
     async #save() {
@@ -971,24 +941,23 @@ class BaseModel {
     // query for an instance of this schema, an async generator returning the
     // ids of the stored records that match the query. Use getById to get the
     // object for each ID.
-    static async* #rawQueryIds(DerivedModel, {KeyConditionExpression, ExpressionAttributeNames, ExpressionAttributeValues, IndexName, sendOptions, ...otherOptions}) {
+    static async* #rawQueryIds(DerivedModel, rawQuery, options) {
+        const {limit, abortSignal} = options?? {};
         const table = DerivedModel[kModelTable];
         const schema = DerivedModel[kModelSchema];
         if (!table[kTableIsReady]) {
             /* c8 ignore next 2 */
             await table.ready();
         }
+        const sendOptions = {
+            ...(abortSignal && {abortSignal})
+        };
         const commandParams = {
-            ...otherOptions,
             TableName: table.name,
-            IndexName,
-            KeyConditionExpression,
-            ExpressionAttributeNames,
-            ExpressionAttributeValues
+            ...rawQuery,
         };
         let response;
         let returned = 0;
-        const limit = otherOptions.totalLimit ?? Infinity;
         do {
             const command = new QueryCommand(commandParams);
             DerivedModel[kModelLogger].trace({command}, 'rawQueryIds');
@@ -1007,6 +976,7 @@ class BaseModel {
     }
 
     // query for instances of this schema, an async generator returning arrays of ids matching the query, up to options.limit.
+    // rawQueryIdsBatchIterator does NOT set the TableName, unlike other #rawQuery* APIs.
     static async* #rawQueryIdsBatchIterator(DerivedModel, rawQuery, options) {
         const {limit, abortSignal} = options?? {};
         const table = DerivedModel[kModelTable];
@@ -1037,13 +1007,7 @@ class BaseModel {
         } while (response.LastEvaluatedKey);
     }
 
-    static async* #rawQuery(DerivedModel, options) {
-        for await(const id of this.#rawQueryIds(DerivedModel, options)) {
-            yield this.#getById(DerivedModel, id);
-        }
-    }
-
-    static async #rawQueryOneId(DerivedModel, options) {
+    static async #rawQueryOneId(DerivedModel, rawQuery, options) {
         const table = DerivedModel[kModelTable];
         const schema = DerivedModel[kModelSchema];
         if (!table[kTableIsReady]) {
@@ -1051,38 +1015,29 @@ class BaseModel {
             await table.ready();
         }
         const commandParams = {
-            ...options,
+            ...rawQuery,
             TableName: table.name,
             Limit: 1
         };
-        const response = await table[kTableDDBClient].send(new QueryCommand(commandParams));
-        return response?.Items?.[0]?.[schema.idFieldName];
+        const response = await table[kTableDDBClient].send(new QueryCommand(commandParams), options);
+        return response?.Items?.[0]?.[schema.idFieldName] ?? null;
     }
 
-    static async #rawQueryOne(DerivedModel, options) {
-        const id = await this.#rawQueryOneId(DerivedModel, options);
-        if (id) {
-            return await this.#getById(DerivedModel, id);
-        } else {
-            return null;
-        }
-    }
-
-    // TODO: this should just be query()/find() with no args?
-    static async* #listAllIds(DerivedModel, options) {
-        const schema = DerivedModel[kModelSchema];
-        for await (const val of this.#rawQueryIds(DerivedModel, {
-            ...options,
-            IndexName: 'type',
-            KeyConditionExpression: '#typeFieldName = :type',
-            ExpressionAttributeValues: {
-                ':type': schema.name
-            },
-            ExpressionAttributeNames: { '#typeFieldName': schema.typeFieldName }
-        })){
-            yield val;
-        }
-    }
+    // TODO: see comment on .listAllIds
+    // static async* #listAllIds(DerivedModel, options) {
+    //     const schema = DerivedModel[kModelSchema];
+    //     for await (const val of this.#rawQueryIds(DerivedModel, {
+    //         ...options,
+    //         IndexName: 'type',
+    //         KeyConditionExpression: '#typeFieldName = :type',
+    //         ExpressionAttributeValues: {
+    //             ':type': schema.name
+    //         },
+    //         ExpressionAttributeNames: { '#typeFieldName': schema.typeFieldName }
+    //     }, { limit: Infinity })){
+    //         yield val;
+    //     }
+    // }
 
     static #queryEntries(queryObject) {
         // return {key: keyFieldName, value: queryValue, condition: '=','<','>'} based on a mongodb-like query object:
@@ -1197,13 +1152,6 @@ class BaseModel {
             // set the dynamodb Limit to the options limit, or the maximum supported, so that we don't evaluate more items than necessary
             // ...(options.limit && {Limit:options.limit})
         }, otherOptions);
-    }
-
-    static async* #query(DerivedModel, query, options) {
-        DerivedModel[kModelLogger].warn({query}, 'Deprecation: #query* is deprecated in favour of #rawQueryIdsBatchIterator*');
-        const rawQuery = this.#convertQuery(DerivedModel, query, options);
-        DerivedModel[kModelLogger].info({query, raw:rawQuery}, 'simple query');
-        yield* this.#rawQuery(DerivedModel, rawQuery);
     }
 }
 
@@ -1502,6 +1450,3 @@ module.exports.default = DynamoDM;
 module.exports.Table = module.exports.Schema = function incorrectUsage(){
     throw new Error("DynamoDM must be called as a function to get an instance of the API, e.g. const DynamoDM = require('dynamodm')(options);");
 };
-
-// export this for testing
-DynamoDM.promiseAllWithCancellation = promiseAllWithCancellation;

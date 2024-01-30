@@ -17,113 +17,6 @@ async function arrayFromAsync(iter) {
 
 t.pass('import ok');
 
-t.test('promiseAllWithCancellation', async t => {
-    const delayMsThenResolve = async (ms) => new Promise(resolve => setTimeout(() => resolve(`resolve value ${ms}`), ms));
-    const delayMsThenReject = async (ms) => new Promise((ignored_resolve, reject) => setTimeout(() => reject(`reject value ${ms}`), ms));
-    const promiseAllWithCancellation = DynamoDMConstructor.promiseAllWithCancellation;
-
-    t.test('without cancellation should wait for all', async t => {
-        const results = await promiseAllWithCancellation([
-            delayMsThenResolve(5),
-            delayMsThenResolve(10),
-            delayMsThenResolve(15),
-        ]);
-        const results2 = await Promise.all([
-            delayMsThenResolve(5),
-            delayMsThenResolve(10),
-            delayMsThenResolve(15),
-        ]);
-        t.match(results, results2);
-    });
-
-    t.test('without cancellation should stop at first rejection', async t => {
-        let results1, results2, rejection1, rejection2;
-        try {
-            results1 = await promiseAllWithCancellation([
-                delayMsThenResolve(5),
-                delayMsThenReject(10),
-                delayMsThenResolve(100),
-            ]);
-        } catch(e) {
-            rejection1 = e;
-        }
-        try{
-            results2 = await Promise.all([
-                delayMsThenResolve(5),
-                delayMsThenReject(10),
-                delayMsThenResolve(100),
-            ]);
-        } catch(e) {
-            rejection2 = e;
-        }
-        t.match(results1, results2, 'should not have results');
-        t.match(rejection1, rejection2, 'should reject with "reject value 10"');
-    });
-
-    t.test('cancellation by resolve should work', async t => {
-        let cancel, cancelled = new Promise((resolve, ignored_reject) => {cancel = resolve;});
-
-        const promises = [
-            delayMsThenResolve(5),
-            delayMsThenResolve(10),
-            delayMsThenResolve(15),
-        ];
-
-        const pending = promiseAllWithCancellation(promises, cancelled);
-        await promises[0];
-        cancel();
-        await t.rejects(pending, new Error('Operation cancelled.'), 'should reject on cancellation after fulfillment of a promise');
-    });
-
-    t.test('immediate cancellation by resolve should work', async t => {
-        let cancel, cancelled = new Promise((resolve, ignored_reject) => {cancel = resolve;});
-
-        const promises = [
-            delayMsThenResolve(5),
-            delayMsThenResolve(10),
-            delayMsThenResolve(15),
-        ];
-
-        const pending = promiseAllWithCancellation(promises, cancelled);
-        cancel(new Error('foo'));
-        await t.rejects(pending, new Error('foo'), 'should reject on cancellation before fulfillment of any promises');
-    });
-
-    t.test('cancelation after resolve should be harmless', async t => {
-        let cancel, cancelled = new Promise((resolve, ignored_reject) => {cancel = resolve;});
-
-        const promises = [
-            delayMsThenResolve(5),
-            delayMsThenResolve(10),
-            delayMsThenResolve(15),
-        ];
-
-        const results = await promiseAllWithCancellation(promises, cancelled);
-        cancel(new Error('bar'));
-        t.match(results, ['resolve value 5', 'resolve value 10', 'resolve value 15']);
-    });
-
-    t.test('cancelation after reject should be harmless', async t => {
-        let cancel, cancelled = new Promise((resolve, ignored_reject) => {cancel = resolve;});
-
-        const promises = [
-            delayMsThenResolve(5),
-            delayMsThenResolve(10),
-            delayMsThenReject(15),
-        ];
-
-        await t.rejects(promiseAllWithCancellation(promises, cancelled), 'reject value 15', 'should reject with value 15');
-        cancel(new Error('bar'));
-        t.ok("shouldn't have thrown or caused unhandled rejection");
-    });
-
-    t.test('invalid cancelation', async t => {
-        await t.rejects(promiseAllWithCancellation([], {then:123}), {message:'Cancellation must be thenable.'}, 'should reject invalid cancellation');
-    });
-
-    await t.end();
-});
-
 t.test('incorrect usage throws', async t => {
     const DynamoDMConstructor = require('../');
     t.throws(() => {
@@ -1261,49 +1154,40 @@ t.test('queries:', async t => {
         table.destroyConnection();
     });
 
-    await t.test('listAllIds', async t => {
-        const allFoos = [];
-        for await (const x of Foo.listAllIds({Limit:2})) {
-            allFoos.push(x);
-            t.equal(x.split('.')[1], 'foo');
-        }
+    // TODO: listAllIds removed from API for now
+    //
+    // await t.test('listAllIds', async t => {
+    //     const allFoos = [];
+    //     for await (const x of Foo.listAllIds({Limit:2})) {
+    //         allFoos.push(x);
+    //         t.equal(x.split('.')[1], 'foo');
+    //     }
 
-        const allBars = [];
-        for await (const x of Bar.listAllIds()) {
-            allBars.push(x);
-            t.equal(x.split('.')[1], 'bar');
-        }
+    //     const allBars = [];
+    //     for await (const x of Bar.listAllIds()) {
+    //         allBars.push(x);
+    //         t.equal(x.split('.')[1], 'bar');
+    //     }
 
-        t.equal(allFoos.length, all_foos.length);
-        t.equal(allBars.length, 10);
-        t.ok(allFoos.every(x => x.split('.')[1] === 'foo'));
-        t.ok(allBars.every(x => x.split('.')[1] === 'bar'));
+    //     t.equal(allFoos.length, all_foos.length);
+    //     t.equal(allBars.length, 10);
+    //     t.ok(allFoos.every(x => x.split('.')[1] === 'foo'));
+    //     t.ok(allBars.every(x => x.split('.')[1] === 'bar'));
 
-        t.end();
-    });
+    //     t.end();
+    // });
 
     await t.test('rawQueryOneId', async t => {
-        const id = await Foo.rawQueryOneId({
-            IndexName:'type',
-            KeyConditionExpression:'#typeFieldName = :type',
-            ExpressionAttributeValues: { ':type': 'namespace.foo' },
-            ExpressionAttributeNames: { '#typeFieldName': 'type' }
-        });
-        t.equal(id.split('.')[1], 'foo');
-    });
-
-    await t.test('rawQueryOne', async t => {
         t.test('on type index', async t => {
-            const foo = await Foo.rawQueryOne({
+            const foo_id = await Foo.rawQueryOneId({
                 IndexName:'type',
                 KeyConditionExpression:'#typeFieldName = :type',
                 ExpressionAttributeValues: { ':type': 'namespace.foo' },
                 ExpressionAttributeNames: { '#typeFieldName': 'type' }
             });
-            t.equal(foo.constructor, Foo, 'constructor should be Foo');
-            t.equal(foo instanceof Foo, true, 'should be an instance of Foo');
+            t.equal(foo_id.split('.')[1], 'foo');
 
-            const nonExistent = await Foo.rawQueryOne({
+            const nonExistent = await Foo.rawQueryOneId({
                 IndexName:'type',
                 KeyConditionExpression:'#typeFieldName = :type',
                 ExpressionAttributeValues: { ':type': 'namespace.doesNotExist' },
@@ -1312,24 +1196,24 @@ t.test('queries:', async t => {
             t.equal(nonExistent, null, 'returns null for no matches');
         });
         t.test('on string index ', async t => {
-            const indexedString = await IndexedString.rawQueryOne({
+            const indexedString_id = await IndexedString.rawQueryOneId({
                 IndexName:'someString',
                 KeyConditionExpression:'someString = :value',
                 ExpressionAttributeValues: { ':value': 'string number 4' }
             });
-            t.equal(indexedString.constructor, (new IndexedString()).constructor, 'should have correct constructor');
-            t.equal(indexedString.someN, 4, 'should have other properties set correctly');
+            t.equal(indexedString_id.split('.')[1], 'indexedString');
+            t.equal((await IndexedString.getById(indexedString_id)).someN, 4, 'should have other properties set correctly');
         });
         t.test('on binary index ', async t => {
-            const nb = await IndexedNumberAndBinary.rawQueryOne({
+            const nb_id = await IndexedNumberAndBinary.rawQueryOneId({
                 IndexName:'myBinaryIndex',
                 // 'blob' is a banned name, so need to use ExpressionAttributeNames...
                 KeyConditionExpression:'#fieldName = :value',
                 ExpressionAttributeValues: { ':value': Buffer.from('hello query 3') },
                 ExpressionAttributeNames: { '#fieldName': 'blob' }
             });
-            t.equal(nb.constructor, (new IndexedNumberAndBinary()).constructor, 'should have correct constructor');
-            t.equal(nb.num, 3, 'should return the lowest in sorted order');
+            t.equal(nb_id.split('.')[1], 'indexedNB');
+            t.equal((await IndexedNumberAndBinary.getById(nb_id)).num, 3, 'should return the lowest in sorted order');
         });
     });
 
@@ -1378,56 +1262,84 @@ t.test('queries:', async t => {
         t.end();
     });
 
-    await t.test('rawQueryIds', async t => {
+    await t.test('rawQueryManyIds', async t => {
         t.test('on type index', async t => {
-            const foos = await arrayFromAsync(Foo.rawQueryIds({
+            const foo_ids = await Foo.rawQueryManyIds({
                 IndexName:'type',
                 KeyConditionExpression:'#typeFieldName = :type',
                 ExpressionAttributeValues: { ':type': 'namespace.foo' },
                 ExpressionAttributeNames: { '#typeFieldName': 'type' }
-            }));
-            t.equal(foos.length, all_foos.length, 'should return all N of this type');
-            t.type(foos[0], 'string', 'should return String IDs');
+            });
+            t.equal(foo_ids.length, all_foos.length, 'should return all N of this type');
+            t.match(foo_ids, all_foos.map(f => f.id), 'should return the correct Ids');
+        });
+        t.test('on string index ', async t => {
+            const indexedStringIds = await IndexedString.rawQueryManyIds({
+                IndexName:'someString',
+                KeyConditionExpression:'someString = :value',
+                ExpressionAttributeValues: { ':value': 'string number 4' }
+            });
+            t.equal(indexedStringIds.length, 1, 'should return one match');
+            t.equal((await IndexedString.getById(indexedStringIds[0])).someN, 4, 'should return the correct item');
+        });
+        t.test('on binary index ', async t => {
+            const nb = await IndexedNumberAndBinary.rawQueryManyIds({
+                IndexName:'myBinaryIndex',
+                KeyConditionExpression:'#fieldName = :value',
+                ExpressionAttributeValues: { ':value': Buffer.from('hello query 3') },
+                ExpressionAttributeNames: { '#fieldName': 'blob' }
+            });
+            t.equal(nb.length, 2, 'should return two matches');
+            t.equal((await IndexedNumberAndBinary.getById(nb[0])).num, 3, 'should return the lowest in sorted order');
         });
         t.end();
     });
 
-    await t.test('rawQuery', async t => {
+    await t.test('rawQueryIteratorIds', async t => {
         t.test('on type index', async t => {
-            const foos = await arrayFromAsync(Foo.rawQuery({
+            const foo_ids = await arrayFromAsync(Foo.rawQueryIteratorIds({
                 IndexName:'type',
                 KeyConditionExpression:'#typeFieldName = :type',
                 ExpressionAttributeValues: { ':type': 'namespace.foo' },
                 ExpressionAttributeNames: { '#typeFieldName': 'type' }
             }));
-            t.equal(foos.length, all_foos.length, 'should return all N of this type');
-            t.equal(foos[0].constructor, (new Foo()).constructor, 'should have the correct constructor');
+            t.equal(foo_ids.length, all_foos.length, 'should return all N of this type');
+            t.match(foo_ids, all_foos.map(f => f.id), 'should return the correct Ids');
         });
         t.test('on string index ', async t => {
-            const indexedStrings = await arrayFromAsync(IndexedString.rawQuery({
+            const indexedStringIds = await arrayFromAsync(IndexedString.rawQueryIteratorIds({
                 IndexName:'someString',
                 KeyConditionExpression:'someString = :value',
                 ExpressionAttributeValues: { ':value': 'string number 4' }
             }));
-            t.equal(indexedStrings.length, 1, 'should return one match');
-            t.equal(indexedStrings[0].constructor, (new IndexedString()).constructor, 'should have the correct constructor');
-            t.equal(indexedStrings[0].someN, 4, 'should have other properties set correctly');
+            t.equal(indexedStringIds.length, 1, 'should return one match');
+            t.equal((await IndexedString.getById(indexedStringIds[0])).someN, 4, 'should return the correct item');
         });
         t.test('on binary index ', async t => {
-            const nb = await arrayFromAsync(IndexedNumberAndBinary.rawQuery({
+            const nb = await arrayFromAsync(IndexedNumberAndBinary.rawQueryIteratorIds({
                 IndexName:'myBinaryIndex',
                 KeyConditionExpression:'#fieldName = :value',
                 ExpressionAttributeValues: { ':value': Buffer.from('hello query 3') },
                 ExpressionAttributeNames: { '#fieldName': 'blob' }
             }));
             t.equal(nb.length, 2, 'should return two matches');
-            t.equal(nb[0].constructor, (new IndexedNumberAndBinary()).constructor, 'should have correct constructor');
-            t.equal(nb[0].num, 3, 'should return the lowest in sorted order');
+            t.equal((await IndexedNumberAndBinary.getById(nb[0])).num, 3, 'should return the lowest in sorted order');
+        });
+        t.test('with limit', async t => {
+            const foo_ids = await arrayFromAsync(Foo.rawQueryIteratorIds({
+                IndexName:'type',
+                KeyConditionExpression:'#typeFieldName = :type',
+                ExpressionAttributeValues: { ':type': 'namespace.foo' },
+                ExpressionAttributeNames: { '#typeFieldName': 'type' }
+            }, {limit: 7}));
+            t.ok(N > 7, 'N needs to be > 7 for this test');
+            t.equal(foo_ids.length, 7, 'should return all N of this type');
+            t.match(foo_ids, all_foos.slice(0,7).map(f => f.id), 'should return the correct Ids');
         });
         t.end();
     });
 
-    await t.test('query() api', async t => {
+    await t.test('query api', async t => {
         // TODO:
         //  * tests for $gt $lt conditions on hash-only indexes to make sure we reject with a nice error (currently the error comes from dynamodb doc client and is not very helpful)
         t.test('queryMany', async t => {
@@ -1621,16 +1533,9 @@ t.test('queries:', async t => {
             t.end();
         });
 
+        // this test is failing because it uses asynchronously handled promise rejections (and breaks the rest of the test suite as well)
         // await t.test('querying via a model of the wrong type', async t => {
-        //     console.log('starting query-wrong-type test');
-        //     const result = t.rejects(Bar.queryMany({type:'namespace.foo'}), {message:'Document does not match schema for ambiguous.bar. The loaded document has a different type "namespace.foo", and the schema is incompatible:  must have required property \'barVal\'.'}, 'should throw if the query returns a document of an incompatible type');
-        //     console.log('running query-wrong-type test');
-        //     try {
-        //         await result;
-        //     } catch (e) {
-        //         console.log('this error should not have been thrown!!!', e);
-        //     }
-        //     console.log('finished query-wrong-type test');
+        //     t.rejects(Bar.queryMany({type:'namespace.foo'}), {message:'Document does not match schema for ambiguous.bar. The loaded document has a different type "namespace.foo", and the schema is incompatible:  must have required property \'barVal\'.'}, 'should throw if the query returns a document of an incompatible type');
         //     t.end();
         // });
 
@@ -1689,13 +1594,11 @@ t.test('queries:', async t => {
             }
 
             // check that we can query for them:
-            await t.test('rawQuery on added index', async t => {
+            await t.test('query on added index', async t => {
                 await t.test('on string index ', async t => {
-                    const extraStrings = await arrayFromAsync(CompatibleExtraString.rawQuery({
-                        IndexName:'otherString',
-                        KeyConditionExpression:'otherString = :value',
-                        ExpressionAttributeValues: { ':value': 'string query 2' }
-                    }));
+                    const extraStrings = await CompatibleExtraString.queryMany({
+                        otherString: 'string query 2'
+                    });
                     t.equal(extraStrings.length, 3, 'should return three matches');
                     t.equal(extraStrings[0].constructor, (new CompatibleExtraString()).constructor, 'should have the correct constructor');
                     t.equal(extraStrings[0].num, 2, 'should return values in sorted order');
