@@ -676,10 +676,16 @@ class BaseModel {
         // returns an array of models (possibly empty)
         const rawQuery = BaseModel.#convertQuery(this, query, Object.assign({startAfter: otherOptions.startAfter, limit: otherOptions.limmit}, rawQueryOptions));
         const pending = [];
+        let errorOccurred = false;
+        const setErrorOccurred = () => { errorOccurred = true; };
         // ... relying on #rawQueryIdsBatchIterator to return the right number in total, based on otherOptions.limit
         for await (const ids of BaseModel.#rawQueryIdsBatchIterator(this, rawQuery, otherOptions)) {
+            if (errorOccurred) break;
             // start fetching the models from the IDs of this batch immediately, but don't await yet so requests can be parallelised
-            pending.push(BaseModel.#getByIds(this, ids, Object.assign({abortSignal: otherOptions.abortSignal}, rawFetchOptions)));
+            const pendingGetByIds = BaseModel.#getByIds(this, ids, Object.assign({abortSignal: otherOptions.abortSignal}, rawFetchOptions));
+            pending.push(pendingGetByIds);
+            // however, we must .catch any errors, so we can fail fast (and prevent PromiseRejectionHandledWarning logs)
+            pendingGetByIds.catch(setErrorOccurred);
         }
         return (await Promise.all(pending)).flat();
     }

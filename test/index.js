@@ -1533,11 +1533,10 @@ t.test('queries:', async t => {
             t.end();
         });
 
-        // this test is failing because it uses asynchronously handled promise rejections (and breaks the rest of the test suite as well)
-        // await t.test('querying via a model of the wrong type', async t => {
-        //     t.rejects(Bar.queryMany({type:'namespace.foo'}), {message:'Document does not match schema for ambiguous.bar. The loaded document has a different type "namespace.foo", and the schema is incompatible:  must have required property \'barVal\'.'}, 'should throw if the query returns a document of an incompatible type');
-        //     t.end();
-        // });
+        await t.test('querying via a model of the wrong type', async t => {
+            t.rejects(Bar.queryMany({type:'namespace.foo'}), {message:'Document does not match schema for ambiguous.bar. The loaded document has a different type "namespace.foo", and the schema is incompatible:  must have required property \'barVal\'.'}, 'should throw if the query returns a document of an incompatible type');
+            t.end();
+        });
 
         t.end();
     });
