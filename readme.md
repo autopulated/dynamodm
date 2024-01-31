@@ -1,6 +1,7 @@
 ## DynamoDM: Simple Document Mapper for DynamoDB
 
 [![CI](https://github.com/autopulated/DynamoDM/actions/workflows/test.yml/badge.svg)](https://github.com/autopulated/DynamoDM/actions/workflows/test.yml)
+[![Coverage](https://coveralls.io/repos/github/autopulated/dynamodm/badge.svg?branch=main)](https://coveralls.io/github/autopulated/dynamodm?branch=main)
 [![NPM version](https://img.shields.io/npm/v/dynamodm.svg?style=flat)](https://www.npmjs.com/package/dynamodm)
 
 
