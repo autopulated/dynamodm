@@ -1,3 +1,6 @@
+### 1.0.3
+ * readme and repository URL updates
+
 ### 1.0.2
  * Fix asynchronous promise handling in queryMany.
  * Removed remains of deprecated query APIs from earlier development.
