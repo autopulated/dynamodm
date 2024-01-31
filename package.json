@@ -4,8 +4,14 @@
   "description": "Simple Document mapper for DynamoDB, inspired by mongoose.",
   "main": "index.js",
   "scripts": {
-    "test": "tap run --show-full-coverage --allow-incomplete-coverage",
+    "test": "tap run",
     "lint": "./node_modules/.bin/eslint -c .eslintrc.json './{,!(node_modules)/**/}*.js'"
+  },
+  "tap": {
+    "show-full-coverage": true,
+    "allow-incomplete-coverage": true,
+    "coverage-report": [ "text", "lcovonly" ],
+    "files": [ "test" ]
   },
   "files": [
     "index.js"

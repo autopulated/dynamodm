@@ -3,7 +3,7 @@ name: test
 on:
   workflow_dispatch:
   push:
-    branches: [ "*" ]
+  pull_request:
 
 jobs:
   test:
@@ -16,12 +16,12 @@ jobs:
           - 8000:8000
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: install deps
         run: npm ci
@@ -36,3 +36,7 @@ jobs:
           AWS_ACCESS_KEY_ID: dummy
           AWS_SECRET_ACCESS_KEY: dummy
 
+      - name: Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          files: .tap/report/lcov.info
