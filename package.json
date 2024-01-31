@@ -25,6 +25,7 @@
   "bugs": {
     "url": "https://github.com/autopulated/dynamodm/issues"
   },
+  "homepage": "https://github.com/autopulated/dynamodm",
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.501.0",
     "@aws-sdk/lib-dynamodb": "^3.501.0",
