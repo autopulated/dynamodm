@@ -1,6 +1,6 @@
 {
   "name": "dynamodm",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Simple Document mapper for DynamoDB, inspired by mongoose.",
   "main": "index.js",
   "scripts": {
@@ -10,8 +10,13 @@
   "tap": {
     "show-full-coverage": true,
     "allow-incomplete-coverage": true,
-    "coverage-report": [ "text", "lcovonly" ],
-    "files": [ "test" ]
+    "coverage-report": [
+      "text",
+      "lcovonly"
+    ],
+    "files": [
+      "test"
+    ]
   },
   "files": [
     "index.js"
