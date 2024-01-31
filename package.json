@@ -18,6 +18,13 @@
     "mapper",
     "mongoose"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/autopulated/dynamodm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/autopulated/dynamodm/issues"
+  },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.501.0",
     "@aws-sdk/lib-dynamodb": "^3.501.0",
