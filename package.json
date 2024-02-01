@@ -16,7 +16,8 @@
     ],
     "files": [
       "test"
-    ]
+    ],
+    "timeout": 60000
   },
   "files": [
     "index.js"

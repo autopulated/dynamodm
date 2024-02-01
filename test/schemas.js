@@ -298,6 +298,7 @@ t.test('basic schemas:', async t => {
         t.resolves(FooModel.testAsyncStatic(), 'async statics work');
     });
 });
+
 t.test('virtuals:', async t => {
     t.test('string aliases', async t => {
         const table = DynamoDM.Table({ name: 'test-table-2'});
@@ -537,7 +538,6 @@ t.test('custom field names', async t => {
 
     t.hasOwnProps(doc, ['myId', 'myType', 'myCreatedAt', 'myUpdatedAt']);
 });
-
 
 t.test('schema errors', async t => {
     const table = DynamoDM.Table({ name: 'test-table-schemas'});

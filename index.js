@@ -310,11 +310,11 @@ class Table {
         } while (!created);
 
         if (!tableHasRequiredIndexes) {
-            await this.#updateIndexes({differentIndexes, missingIndexes, existingIndexes:response.Table.GlobalSecondaryIndexes});
+            await this.#updateIndexes({differentIndexes, missingIndexes, existingIndexes: response.Table.GlobalSecondaryIndexes, createAll: waitForIndexes});
         }
 
         if (waitForIndexes) {
-            await this.#waitForIndexes();
+            await this.#waitForIndexesActive();
         }
 
         this[kTableIsReady] = true;
@@ -499,52 +499,48 @@ class Table {
         return {uniqueRequiredAttributes};
     }
 
-    async #updateIndexes({differentIndexes, missingIndexes, existingIndexes}) {
+    async #updateIndexes({differentIndexes, missingIndexes, existingIndexes, createAll}) {
         if (differentIndexes.length) {
             this.#logger.warn({existingIndexes, differentIndexes}, `WARNING: indexes "${differentIndexes.map(i => i.index.IndexName).join(',')}" differ from the current specifications, but these will not be automatically updated.`);
         }
-        // FIXME: we can only add one missing index at a time, so just try to
-        // add the first one. Need a createIndexes option, as this could be a
-        // long wait if we need to create many? (Subscriber limit exceeded:
-        // Only 1 online index can be created or deleted simultaneously per
-        // table -> each update table command can only create one index....
-        // "You can create or delete only one global secondary index per
-        // UpdateTable operation.")
         if (missingIndexes.length) {
-            const updates = {
-                TableName: this.name,
-                GlobalSecondaryIndexUpdates: [],
-                AttributeDefinitions: []
-            };
-            // we only need to include the attribute definitions required by
-            // the indexes being created, existing attribute definitions used
-            // by other indexes do not need to be repeated:
-            // FIXME see above, only adding the first missing one:
-            //for (const missingIndex of missingIndexes) {
-            //    updates.GlobalSecondaryIndexUpdates.push({Create: missingIndex.index});
-            //    updates.AttributeDefinitions = updates.AttributeDefinitions.concat(missingIndex.requiredAttributes);
-            //}
-            const missingIndex = missingIndexes.shift();
-            updates.GlobalSecondaryIndexUpdates.push({Create: missingIndex.index});
-            updates.AttributeDefinitions = updates.AttributeDefinitions.concat(missingIndex.requiredAttributes);
+            // Only one index can be added at a time:
+            for (const missingIndex of missingIndexes) {
+                const updates = {
+                    TableName: this.name,
+                    GlobalSecondaryIndexUpdates: [],
+                    AttributeDefinitions: []
+                };
+                // we only need to include the attribute definitions required by
+                // the indexes being created, existing attribute definitions used
+                // by other indexes do not need to be repeated:
+                updates.GlobalSecondaryIndexUpdates.push({Create: missingIndex.index});
+                updates.AttributeDefinitions = updates.AttributeDefinitions.concat(missingIndex.requiredAttributes);
 
-            this.#logger.info({updates}, 'Updating table %s.', this.name);
-            await this[kTableDDBClient].send(new UpdateTableCommand(updates));
+                this.#logger.info({updates}, 'Updating table %s.', this.name);
+                await this[kTableDDBClient].send(new UpdateTableCommand(updates));
+
+                if (createAll) {
+                    await this.#waitForIndexesActive();
+                } else {
+                    break;
+                }
+            }
         }
     }
 
-    async #waitForIndexes() {
-        let response;
+    async #waitForIndexesActive() {
         while (true) {
-            response = await this[kTableDDBClient].send(new DescribeTableCommand({TableName: this.name}));
-            // TODO: should be able to cover this actually
-            /* c8 ignore else */
-            if (response.Table.TableStatus === 'ACTIVE') {
+            const response = await this[kTableDDBClient].send(new DescribeTableCommand({TableName: this.name}));
+            if (response.Table.TableStatus === 'ACTIVE' &&
+                (response.Table.GlobalSecondaryIndexes || []).every(gsi => gsi.IndexStatus === 'ACTIVE')) {
                 break;
-            } else if (response.Table.TableStatus === 'UPDATING'){
-                await new Promise(resolve => setTimeout(resolve, 500));
+            } else if (['UPDATING', 'ACTIVE'].includes(response.Table.TableStatus) ||
+                (response.Table.GlobalSecondaryIndexes || []).every(gsi => ['CREATING', 'UPDATING', 'ACTIVE'].includes(gsi.IndexStatus))) {
+                // TODO: probably want exponential backoff here too...
+                await delayMs(500);
             } else {
-                throw new Error(`Table ${this.name} status is ${response.Table.TableStatus}.`);
+                throw new Error(`Table ${this.name} status is ${response.Table.TableStatus}, index statuses are ${(response.Table.GlobalSecondaryIndexes || []).map(gsi => gsi.IndexStatus).join(', ')}.`);
             }
         }
     }
