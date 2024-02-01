@@ -592,7 +592,18 @@ class BaseModel {
 
     // public static methods:
     // options: {ConsistentRead: true, abortSignal: ...} ... dynamoDB consistent read option (defaults to false), and dynamoDB abortSignal options
-    static async getById(id, options) {
+    static #getById_options_validate = ajv.compile({
+        type: 'object',
+        properties: {
+            abortSignal: {type:'object'},
+            ConsistentRead: {type:'boolean'},
+        },
+        additionalProperties: false
+    });
+    static async getById(id, options={}) {
+        if (!BaseModel.#getById_options_validate(options)) {
+            throw new Error(`Invalid options: ${inspect(BaseModel.#getById_options_validate.errors, {breakLength:Infinity})}.`);
+        }
         // get one model by its id
         // forward the derived class we were called on to the private
         // implementation (since the private implementation must be called on
@@ -602,7 +613,18 @@ class BaseModel {
 
     // TODO: I don't think this should be public, but it's nice to be able to test it directly
     // options: {ConsistentRead: true, abortSignal: ...} ... dynamoDB consistent read option (defaults to false), and dynamoDB abortSignal options
-    static async getByIds(ids, options) {
+    static #getByIds_options_validate = ajv.compile({
+        type: 'object',
+        properties: {
+            abortSignal: {type:'object'},
+            ConsistentRead: {type:'boolean'},
+        },
+        additionalProperties: false
+    });
+    static async getByIds(ids, options={}) {
+        if(!BaseModel.#getByIds_options_validate(options)){
+            throw new Error(`Invalid options: ${inspect(BaseModel.#getByIds_options_validate.errors, {breakLength:Infinity})}.`);
+        }
         // get an array of models (of the same type) by id
         return BaseModel.#getByIds(this, ids, options);
     }
@@ -628,18 +650,80 @@ class BaseModel {
     // Query API Methods:
     // For all non-ids methods a separate request is required to fetch the models, rather than just their IDs, which uses options from options.rawFetchOptions
     //
+    static #rawQueryOptionsSchema = {
+        type: 'object',
+        properties: {
+            'Limit': {type:'number'},
+            'ScanIndexForward': {type:'boolean'},
+            'FilterExpression': {type:'string'},
+            'ExpressionAttributeNames': {type:'object'},
+            'ExpressionAttributeValues': {type:'object'},
+            'ExclusiveStartKey': {type:'object'}
+        },
+        additionalProperties: false
+    };
+    static #rawFetchOptionsSchema = {
+        type: 'object',
+        properties: {
+            'ScanIndexForward': {type:'boolean'},
+            'FilterExpression': {type:'string'},
+            'ExpressionAttributeNames': {type:'object'},
+            'ExpressionAttributeValues': {type:'object'},
+            'ExclusiveStartKey': {type:'object'}
+        },
+        additionalProperties: false
+    };
+    static #queryOne_options_validate = ajv.compile({
+        type: 'object',
+        properties: {
+            limit: {type:'number', const: 1},
+            abortSignal: {type:'object'},
+            startAfter: {type: 'object'},
+            rawQueryOptions: this.#rawQueryOptionsSchema,
+            rawFetchOptions: this.#rawFetchOptionsSchema
+        },
+        additionalProperties: false
+    });
     // returns a model, or null
-    static async queryOne(query, options) {
+    static async queryOne(query, options={}) {
+        if(!BaseModel.#queryOne_options_validate(options)){
+            throw new Error(`Invalid options: ${inspect(BaseModel.#queryOne_options_validate.errors, {breakLength:Infinity})}.`);
+        }
         // TODO: would be better to specialise this, but for now just use queryMany with limit:1, and rawQueryOptions.Limit: 1, note that rawQueryOptions.Limit:1 would be a bad choice if rawQueryOptions.FilterExpression is provided, so if you provide a FilterExpression also set Limit to something higher
         options = Object.assign({}, options, {limit:1, rawQueryOptions: Object.assign({Limit:1}, options?.rawQueryOptions)});
         return (await this.queryMany(query, options))[0] || null;
     }
+
+    static #queryOneId_options_validate = ajv.compile({
+        type: 'object',
+        properties: {
+            limit: {type:'number', const: 1},
+            abortSignal: {type:'object'},
+            startAfter: {type: 'object'},
+            rawQueryOptions: this.#rawQueryOptionsSchema,
+        },
+        additionalProperties: false
+    });
     // returns a model id, or null
-    static async queryOneId(query, options) {
+    static async queryOneId(query, options={}) {
+        if(!BaseModel.#queryOneId_options_validate(options)){
+            throw new Error(`Invalid options: ${inspect(BaseModel.#queryOneId_options_validate.errors, {breakLength:Infinity})}.`);
+        }
         options = Object.assign({}, options, {limit:1, rawQueryOptions: Object.assign({Limit:1}, options?.rawQueryOptions)});
         return (await this.queryManyIds(query, options))[0] || null;
     }
 
+    static #queryMany_options_validate = ajv.compile({
+        type: 'object',
+        properties: {
+            limit: {type:'number', default: 50},
+            abortSignal: {type:'object'},
+            startAfter: {type: 'object'},
+            rawQueryOptions: this.#rawQueryOptionsSchema,
+            rawFetchOptions: this.#rawFetchOptionsSchema
+        },
+        additionalProperties: false
+    });
     // return an array of up to options.limit items, starting from options.startAfter
     // supported options:
     // {
@@ -668,10 +752,11 @@ class BaseModel {
     //      ... raw options passed to DynamoDB.GetItemsCommand for the fetch phase, e.g. ConsistentRead: true for strongly consistent reads
     //   }
     // }
-    static async queryMany(query, options) {
+    static async queryMany(query, options={}) {
+        if(!BaseModel.#queryMany_options_validate(options)){
+            throw new Error(`Invalid options: ${inspect(BaseModel.#queryMany_options_validate.errors, {breakLength:Infinity})}.`);
+        }
         let {rawQueryOptions, rawFetchOptions, ...otherOptions} = options ?? {};
-        // TODO: schema for options which assigns default limit, checks types
-        otherOptions = Object.assign({limit: 50}, otherOptions);
 
         // returns an array of models (possibly empty)
         const rawQuery = BaseModel.#convertQuery(this, query, Object.assign({startAfter: otherOptions.startAfter, limit: otherOptions.limmit}, rawQueryOptions));
@@ -689,7 +774,21 @@ class BaseModel {
         }
         return (await Promise.all(pending)).flat();
     }
-    static async queryManyIds(query, options) {
+
+    static #queryManyIds_options_validate = ajv.compile({
+        type: 'object',
+        properties: {
+            limit: {type:'number', default:50},
+            abortSignal: {type:'object'},
+            startAfter: {type: 'object'},
+            rawQueryOptions: this.#rawQueryOptionsSchema
+        },
+        additionalProperties: false
+    });
+    static async queryManyIds(query, options={}) {
+        if(!BaseModel.#queryManyIds_options_validate(options)){
+            throw new Error(`Invalid options: ${inspect(BaseModel.#queryManyIds_options_validate.errors, {breakLength:Infinity})}.`);
+        }
         // options are as queryMany, except Ids are returned, so there are no rawFetchOptions
         let {rawQueryOptions, ...otherOptions} = options ?? {};
         otherOptions = Object.assign({limit: 50}, otherOptions);
@@ -709,10 +808,10 @@ class BaseModel {
     // static async* queryIteratorIds(query, options) {
     // }
 
-    static async rawQueryOneId(rawQuery, options) {
+    static async rawQueryOneId(rawQuery, options={}) {
         return BaseModel.#rawQueryOneId(this, rawQuery, options);
     }
-    static async rawQueryManyIds(rawQuery, options) {
+    static async rawQueryManyIds(rawQuery, options={}) {
         // TODO: schema for options which assigns default limit, checks types
         options = Object.assign({limit: 50}, options);
         const results = [];
@@ -725,7 +824,7 @@ class BaseModel {
         }
         return results.flat();
     }
-    static async* rawQueryIteratorIds(rawQuery, options) {
+    static async* rawQueryIteratorIds(rawQuery, options={}) {
         options = Object.assign({limit: Infinity}, options);
         yield* BaseModel.#rawQueryIds(this, rawQuery, options);
     }

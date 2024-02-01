@@ -1219,6 +1219,7 @@ t.test('queries:', async t => {
 
     await t.test('getById', t => {
         t.rejects(Foo.getById(null), 'should reject null id');
+        t.rejects(Foo.getById('someid', {foo:1}), 'should reject invalid option');
         t.rejects(Foo.getById(''), 'should reject empty id');
         t.rejects(Foo.getById(123), 'should reject numeric id');
         t.end();
@@ -1234,6 +1235,7 @@ t.test('queries:', async t => {
 
     await t.test('getByIds', async t => {
         await t.rejects(Foo.getByIds([null]), 'should reject null id');
+        t.rejects(Foo.getByIds(['someid'], {foo:1}), 'should reject invalid option');
         t.match(await Foo.getByIds(['nonexistent']), [null], 'should return null for nonexistent id');
         t.match(await Foo.getByIds(['nonexistent', all_foos[0].id]), [null, all_foos[0]], 'should return null along with extant model');
         const foos = await Foo.getByIds(all_foos.map(f => f.id));
@@ -1539,6 +1541,32 @@ t.test('queries:', async t => {
         });
 
         t.end();
+    });
+
+    t.test('options validation', async t => {
+        t.test('queryOne', async t => {
+            t.rejects(Foo.queryOne({ type: 'namespace.foo' }, {invalidOption:123}), {message:"Invalid options: [ { instancePath: '', schemaPath: '#/additionalProperties', keyword: 'additionalProperties', params: { additionalProperty: 'invalidOption' }, message: 'must NOT have additional properties' } ]."}, 'rejects invalid option');
+            t.rejects(Foo.queryOne({ type: 'namespace.foo' }, {limit:2}), {message:"Invalid options: [ { instancePath: '/limit', schemaPath: '#/properties/limit/const', keyword: 'const', params: { allowedValue: 1 }, message: 'must be equal to constant' } ]"}, 'rejects incorrect option value');
+            t.rejects(Foo.queryOne({ type: 'namespace.foo' }, {startAfter:'somestring'}), {message:"Invalid options: [ { instancePath: '/startAfter', schemaPath: '#/properties/startAfter/type', keyword: 'type', params: { type: 'object' }, message: 'must be object' } ]."}, 'rejects incorrect option type');
+            t.end();
+        });
+        t.test('queryOneId', async t => {
+            t.rejects(Foo.queryOneId({ type: 'namespace.foo' }, {rawFetchOptions:{}}), {message:"Invalid options: [ { instancePath: '', schemaPath: '#/additionalProperties', keyword: 'additionalProperties', params: { additionalProperty: 'rawFetchOptions' }, message: 'must NOT have additional properties' } ]."}, 'rejects invalid option');
+            t.rejects(Foo.queryOneId({ type: 'namespace.foo' }, {limit:2}), {message:"Invalid options: [ { instancePath: '/limit', schemaPath: '#/properties/limit/const', keyword: 'const', params: { allowedValue: 1 }, message: 'must be equal to constant' } ]"}, 'rejects incorrect option value');
+            t.rejects(Foo.queryOneId({ type: 'namespace.foo' }, {startAfter:'somestring'}), {message:"Invalid options: [ { instancePath: '/startAfter', schemaPath: '#/properties/startAfter/type', keyword: 'type', params: { type: 'object' }, message: 'must be object' } ]."}, 'rejects incorrect option type');
+            t.end();
+        });
+        t.test('queryMany', async t => {
+            t.rejects(Foo.queryMany({ type: 'namespace.foo' }, {invalidOption:123}), {message:"Invalid options: [ { instancePath: '', schemaPath: '#/additionalProperties', keyword: 'additionalProperties', params: { additionalProperty: 'invalidOption' }, message: 'must NOT have additional properties' } ]."}, 'rejects invalid option');
+            t.rejects(Foo.queryMany({ type: 'namespace.foo' }, {startAfter:'somestring'}), {message:"Invalid options: [ { instancePath: '/startAfter', schemaPath: '#/properties/startAfter/type', keyword: 'type', params: { type: 'object' }, message: 'must be object' } ]."}, 'rejects incorrect option type');
+            t.end();
+        });
+        t.test('queryManyIds', async t => {
+            t.rejects(Foo.queryManyIds({ type: 'namespace.foo' }, {rawFetchOptions:{}}), {message:"Invalid options: [ { instancePath: '', schemaPath: '#/additionalProperties', keyword: 'additionalProperties', params: { additionalProperty: 'rawFetchOptions' }, message: 'must NOT have additional properties' } ]."}, 'rejects invalid option');
+            t.rejects(Foo.queryManyIds({ type: 'namespace.foo' }, {startAfter:'somestring'}), {message:"Invalid options: [ { instancePath: '/startAfter', schemaPath: '#/properties/startAfter/type', keyword: 'type', params: { type: 'object' }, message: 'must be object' } ]."}, 'rejects incorrect option type');
+            t.end();
+        });
+        await t.end();
     });
 
     await t.test('add missing indexes', async t => {
