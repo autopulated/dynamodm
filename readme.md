@@ -117,6 +117,8 @@ DynamoDB state.
 ```js
 const table = ddm.Table('my-table-name', tableOptions)
 
+// add models here ...
+
 await table.ready()
 ```
 
@@ -136,11 +138,9 @@ been set up correctly already in dynamodb. Use this instead of .ready() if
 using dynanamoDM in a short-lived environment like a lambda function.
 
 ### Table.model(schema)
-Create and return a `Model` in this table, using the specified
+Create and return a [`Model`](#model-types) in this table, using the specified
 [schema](#schema). Or return the existing Model type for this schema if it has
 already been added.
-
-Returns [a Model type](#model-types).
 
 ### async Table.deleteTable()
 Delete the dynamoDB table (sends a `DeleteTableCommand` with the name of this
@@ -183,11 +183,11 @@ for their ID fields and type fields).
 
 Supported options:
  * `options.index`: The indexes for this schema, if any.
- * `options.generateId`: A function used to generate a new id for documents of this type. Defaults to `() => ${schema.name}.${new ObjectId()}`
+ * `options.generateId`: A function used to generate a new id for documents of this type. Defaults to ``` () => `${schema.name}.${new ObjectId()}` ```
 
-After creating a schema, [`.methods`](#schema-methods),
-[`.statics`](#schema-statics), [`.virtuals`](#schema-virtuals), and
-[`.converters`](#schema-converters) may be defined. These will be added to the
+After creating a schema, [`.methods`](#schemamethods),
+[`.statics`](#schemastatics), [`.virtuals`](#schemavirtuals), and
+[`.converters`](#schemaconverters) may be defined. These will be added to the
 model instances created from this schema.
 
 ### JSON schema for Schemas
@@ -227,10 +227,12 @@ const Foo = table.model(FooSchema)
 const f1 = await (new Foo({ nested: { field1: 123 } })).save()
 const f2 = await (new Foo({ nested: { field2: 'a string' } })).save()
 
-console.log(await Foo.getById(f1.id)) // { nested: {field1: 123}, type:'foo', id: ... }
+// { nested: {field1: 123}, type:'foo', id: ... }
+console.log(await Foo.getById(f1.id))
 ```
 
-Defining a model with a timestamp field (a Date object on the model which is stored as a number in DynamoDB):
+Defining a model with a timestamp field (a Date object on the model which is
+stored as a number in DynamoDB):
 ```js
 const CommentSchema = table.Schema('comment', {
     properties: {
@@ -241,13 +243,16 @@ const CommentSchema = table.Schema('comment', {
 const Comment = table.model(CommentSchema)
 const c1 = await (new Comment({ text: 'some text', commentedAt: new Date() })).save()
 
-console.log(await Foo.getById(f1.id)) // { text: 'some text', commentedAt: 2028-02-29T16:43:53.656Z, type:'comment', id: ... }
+// { text: 'some text', commentedAt: 2028-02-29T16:43:53.656Z, type:'comment', id: ... }
+console.log(await Foo.getById(f1.id)) 
 
 ```
 
 ### Built-in schema types
- * `DynamoDM().Timestamp`: Converted to `Date` object on load, Saved as a DynamoDB `N` number type (the `.getTime()` value).
- * `DynamoDM().Binary`: Converted to a `Buffer` on load. Saved as DynamoDB `B` binary type. dynamoDB binary types are otherwise returned as `Uint8Array`s.
+ * `DynamoDM().Timestamp`: Converted to `Date` object on load, Saved as a
+   DynamoDB `N` number type (the `.getTime()` value).
+ * `DynamoDM().Binary`: Converted to a `Buffer` on load. Saved as DynamoDB `B`
+   binary type. dynamoDB binary types are otherwise returned as `Uint8Array`s.
 
 ### Built-in schema fragments
 Special fields are defined by using fragments of schema by value.
@@ -291,7 +296,9 @@ console.log(m1._dynamodm_id);
 ## Schema.methods
 Instance methods on a model may be defined by assigning to `schema.methods`:
 ```js
-const CommentSchema = table.Schema('comment', {properties: {text: {type: 'string'}}})
+const CommentSchema = table.Schema('comment', {
+    properties: {text: {type: 'string'}}
+})
 CommentSchema.methods.countWords = function() {
     return this.text.split().length
 }
@@ -303,16 +310,20 @@ const wc = comment.countWords()
 ## Schema.statics
 Static methods on a model may be defined by assigning to `schema.statics`:
 ```js
-const CommentSchema = table.Schema('comment', {properties: {text: {type: 'string'}, ownerId: {type: ddm.DocId}}})
+const CommentSchema = table.Schema('comment', {
+    properties: {text: {type: 'string'}, user: {type: ddm.DocId}}
+})
 CommentSchema.statics.createAndSaveForUser = async function(user, properties) {
     // in static methods 'this' is the model prototype:
     const comment = new this(properties)
-    comment.ownerId = user.id
+    comment.user = user.id
     await comment.save()
     return comment
 }
 const Comment = table.model(CommentSchema)
-const aComment = await Comment.createAndSaveForUser(aUser, {text: 'my comment text'})
+const aComment = await Comment.createAndSaveForUser(
+    aUser, {text: 'my comment text'}
+)
 ```
 
 ## Schema.virtuals
@@ -323,7 +334,9 @@ are required by the application, but which are not saved in the database.
 Virtual properties can either be a string alias for another property, in which
 case a getter and setter for the property are defined automatically:
 ```js
-const CommentSchema = table.Schema('comment', {properties: {text: {type: 'string'}}})
+const CommentSchema = table.Schema('comment', {
+    properties: {text: {type: 'string'}}
+})
 CommentSchema.virtuals.someText = 'text'
 const Comment = table.model(CommentSchema)
 
@@ -339,7 +352,9 @@ Or a data descriptor or accessor descriptor that will be passed to
 [`Object.defineProperties`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/defineProperties),
 and which defines its own `get` and/or `set` methods:
 ```js
-const CommentSchema = table.Schema('comment', {properties: {text: {type: 'string'}}})
+const CommentSchema = table.Schema('comment', {
+    properties: {text: {type: 'string'}}
+})
 CommentSchema.virtuals.wordCount = {
     get: function() {
         return this.text.split().length
@@ -354,8 +369,9 @@ const wc = comment.wordCount
 ## Schema.converters (Array)
 Virtual properties must be synchronous, but sometimes it's useful to
 asynchronously compute field values. To enable this
-[`.toObject()`](#async_Model.toObject) will asynchronously iterate over the
-array of Schema.converters when converting a document to a plain object.
+[`.toObject()`](#async-modeltoobjectvirtuals-converteroptions) will
+asynchronously iterate over the array of Schema.converters when converting a
+document to a plain object.
 
 Converters can also be used to redact fields that should be hidden from the
 serialised versions of documents (for example when serialising for an API).
@@ -363,14 +379,19 @@ serialised versions of documents (for example when serialising for an API).
 `.converters` is an array, and the converters are always executed in order:
 
 ```js
-const UserSchema = table.Schema('user', {properties: {emailAddress: {type:'string'}, name: {type:'string'}})
+const UserSchema = table.Schema('user', {
+    properties: {emailAddress: {type:'string'}, name: {type:'string'}
+})
 
 // converter to count the comments this user has made:
 UserSchema.converters.push(async (value, options) => {
     // get a handle to a previously defined Comment Model from its schema:
     const Comment =  this.table.model(CommentSchema)
     // update value asynchronously
-    value.commentCount = (await Comment.queryManyIds({ownerId: this.id}, {limit: 100})).length
+    value.commentCount = (await Comment.queryManyIds(
+        { user: this.id },
+        { limit: 100 }
+    )).length
     // converters must return the new value
     return value
 })
@@ -379,8 +400,8 @@ UserSchema.converters.push(async (value, options) => {
 UserSchema.converters.push((value, options) => {
     delete value.emailAddress
     // the converted value will no longer have .emailAddress, but
-    // 'this.emailAddress' is still available to subsequent converters if they
-    // need it
+    // 'this.emailAddress' is still available to subsequent
+    // converters if they need it
     return value
 })
 
@@ -392,27 +413,37 @@ UserSchema.converters.push((value, options) => {
 
 const User = table.model(UserSchema)
 const user = User.getById('user.someid')
-const asPlainObj = await user.toObject({someOptionForConverters: 'foo'})
+const asPlainObj = await user.toObject({
+    someOptionForConverters: 'foo'
+})
 
-console.log(asPlainObj) // { commentCount: 4, newField: 'foo', type: 'user', id: ...}
+// { commentCount: 4, newField: 'foo', type: 'user', id: ...}
+console.log(asPlainObj) 
 ```
 
 ## Model Types
 Model types are the main way that documents stored in dynamodb are accessed. A
 unique class is created for each model type in a table, with the name
-`Model_schemaname`. All methods are provided by a base class (`BaseModel`),
-which is not directly accessible.
+`Model_schemaname`. All methods are provided by an internal base class
+(`BaseModel`), which is not directly accessible.
 
-Instances of a model (`const doc = new MyModel(properties)`) are referred to as Documents.
+Instances of a model (`const doc = new MyModel(properties)`) are referred to as
+Documents.
 
-To set fields in the database, set properties on a document and then call `doc.save()`. There are no limits on field names that can be used, apart from the normal javascript reserved names like `constructor`.
+To set fields in the database, set properties on a document and then call
+`doc.save()`. There are no limits on field names that can be used, apart from
+the normal javascript reserved names like `constructor`.
 
 ## Creating, updating, and removing Documents.
 ### Model.constructor (new Model(properties)) 
 Create a new document (a model instance) with the specified properties.
 
 ```js
-const aCommment = new Comment({text:'some text', ownerId: aUser.id, commentTime: new Date() });
+const aCommment = new Comment({
+    text: 'some text',
+    user: aUser.id,
+    commentTime: new Date()
+});
 ```
 
 ### async Model.save() 
@@ -422,7 +453,10 @@ new document will be created.
 
 Save a new document:
 ```
-const aCommment = new Comment({text:'some text', ownerId: aUser.id, commentTime: new Date() });
+const aCommment = new Comment({
+    text: 'some text',
+    user: aUser.id,
+});
 await aComment.save();
 ```
 
@@ -435,16 +469,28 @@ await aComment.save();
 
 ### async Model.remove()
 Delete a document.
+```js
 const aComment = await Comemnt.getById(someId);
 await aComment.delete();
+```
 
 ### async Model.toObject({virtuals, ...converterOptions})
-Convert a document into a plain object representation (e.g. suitable for JSON stringification):
+Convert a document into a plain object representation (e.g. suitable for JSON
+stringification):
 
 Note that this method is asynchronous (returns a Promise that must be awaited),
-because it may execute the [`.converters`](#schema-converters-array) that the
+because it may execute the [`.converters`](#schemaconverters-array) that the
 schema defines for this model type.
 
+```
+const aCommment = new Comment({
+    text: 'some text',
+    user: aUser.id,
+});
+await aComment.save();
+
+const stingified = JSON.stringify(await aComment.toObject());
+```
 
 ## Getting Documents by id
 ### static async Model.getById(id)
