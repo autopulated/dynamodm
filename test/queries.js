@@ -127,7 +127,7 @@ t.test('queries:', async t => {
     const IndexedNumberAndBinary = table.model(IndexedNumberAndBinarySchema);
 
     // this should be creating indexes
-    await table.ready();
+    await table.ready({waitForIndexes: true});
 
     const all_foos = [];
     for (let i = 0; i < 50; i++ ) {
@@ -238,6 +238,14 @@ t.test('queries:', async t => {
         t.equal(foos.length, all_foos.length, 'should return all models');
         t.match(foos.map(f => f?.id), all_foos.map(f => f?.id), 'should return all models in order');
         await t.rejects(Foo.getByIds(''), new Error('Invalid ids: must be array of strings of nonzero length.'), 'should reject non-array argument');
+        t.end();
+    });
+
+    t.test('getByIds exceeding retries', async t => {
+        const table2 = DynamoDM.Table({ name: 'test-table-queries', retry: { maxRetries:0 }});
+        t.after(async () => { table2.destroyConnection(); });
+        const Foo2 = table2.model(FooSchema);
+        t.rejects(Foo2.getByIds(all_foos.map(f => f.id)), {message:'Request failed: maximum retries exceeded.'}, 'getByIds with a large number of large responses should require retries for BatchGetCommand.');
         t.end();
     });
 

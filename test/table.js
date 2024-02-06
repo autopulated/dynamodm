@@ -173,7 +173,20 @@ t.test('table consistency:', async t => {
     t.test('throws on invalid table name', async t => {
         t.throws(() => {
             DynamoDM.Table({ name: '1'});
-        }, /Invalid table name.*/);
+        }, {message:`Invalid table name "1": Must be between 3 and 255 characters long, and may contain only the characters a-z, A-Z, 0-9, '_', '-', and '.'.`}, 'invalid table name as option');
+
+        t.throws(() => {
+            DynamoDM.Table('1');
+        }, {message:`Invalid table name "1": Must be between 3 and 255 characters long, and may contain only the characters a-z, A-Z, 0-9, '_', '-', and '.'.`}, 'invalid table name as argument');
+
+        t.throws(() => {
+            DynamoDM.Table();
+        }, {message:'Invalid table name: Must be a string.'}, 'missing table name');
+
+        t.throws(() => {
+            DynamoDM.Table({name: null});
+        }, {message:'Invalid table name: Must be a string.'}, 'missing table name as option');
+        t.end();
     });
 
     await t.test('throws on invalid index name', async t => {

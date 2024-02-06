@@ -212,6 +212,11 @@ class Table {
     #typeFieldName = '';
     #clientShouldBeDestroyed = false;
     #logger = null;
+    #retryOptions = {
+        exponent:2,
+        delayRandomness:0.75, // 0 = no jitter, 1 = full jitter
+        maxRetries:5
+    };
 
     // protected fields that other classes need direct access to
     [kTableIsReady] = false;
@@ -220,9 +225,11 @@ class Table {
 
     constructor(options) {
         // TODO: The marshall options should be fixed?
-        let { name, client, clientOptions } = options;
+        let { name, client, clientOptions, retry } = options;
 
-        if (!validTableName.exec(name)) {
+        if (typeof name !== 'string') {
+            throw new Error('Invalid table name: Must be a string.');
+        } else if(!validTableName.exec(name)) {
             throw new Error(`Invalid table name "${name}": Must be between 3 and 255 characters long, and may contain only the characters a-z, A-Z, 0-9, '_', '-', and '.'.`);
         }
         this.#logger = options.logger.child({table: name});
@@ -234,6 +241,7 @@ class Table {
         this.docClient = DynamoDBDocumentClient.from(client);
         this[kTableDDBClient] = this.docClient;
         this.#clientShouldBeDestroyed = !options.client;
+        this.#retryOptions = Object.assign(this.#retryOptions, retry);
     }
 
     // public methods:
@@ -286,8 +294,7 @@ class Table {
             tableHasRequiredIndexes = true;
             response = await this[kTableDDBClient].send(new DescribeTableCommand({TableName: this.name}));
             if (response.Table.TableStatus === 'CREATING') {
-                /* c8 ignore next */
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await delayMs(500);
             } else if (response.Table.TableStatus === 'ACTIVE' || response.Table.TableStatus === 'UPDATING') {
                 this.#logger.info('Table %s now %s', this.name, response.Table.TableStatus);
                 created = true;
@@ -396,14 +403,10 @@ class Table {
 
     // protected methods
     [kTableGetBackoffDelayMs] = (retryNumber) => {
-        // TODO, should be configurable by table options
-        const exponent = 2;
-        const delayRandomness = 0.75; // 0 = no jitter, 1 = full jitter
-        const maxRetries = 5;
-        if (retryNumber >= maxRetries) {
+        if (retryNumber >= this.#retryOptions.maxRetries) {
             throw new Error('Request failed: maximum retries exceeded.');
         }
-        return (exponent ** retryNumber) * ((1-delayRandomness) + delayRandomness * Math.random());
+        return (this.#retryOptions.exponent ** retryNumber) * ((1-this.#retryOptions.delayRandomness) + this.#retryOptions.delayRandomness * Math.random());
     };
 
     // private methods:
@@ -549,7 +552,6 @@ class Table {
                 break;
             } else if (['UPDATING', 'ACTIVE'].includes(response.Table.TableStatus) ||
                 (response.Table.GlobalSecondaryIndexes || []).every(gsi => ['CREATING', 'UPDATING', 'ACTIVE'].includes(gsi.IndexStatus))) {
-                // TODO: probably want exponential backoff here too...
                 await delayMs(500);
             } else {
                 throw new Error(`Table ${this.name} status is ${response.Table.TableStatus}, index statuses are ${(response.Table.GlobalSecondaryIndexes || []).map(gsi => gsi.IndexStatus).join(', ')}.`);
@@ -1036,11 +1038,13 @@ class BaseModel {
                 results.set(data[schema.idFieldName], data);
             });
             Keys = response?.UnprocessedKeys?.[table.name]?.Keys ?? [];
-            // exponential backoff as rescommended
-            // https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.Errors.html#Programming.Errors.RetryAndBackoff
-            // since unprocessed keys might be caused by read capacity throttling:
-            retryCount += 1;
-            await delayMs(table[kTableGetBackoffDelayMs](retryCount));
+            if (Keys.length) {
+                // exponential backoff as recommended
+                // https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.Errors.html#Programming.Errors.RetryAndBackoff
+                // since unprocessed keys might be caused by read capacity throttling:
+                retryCount += 1;
+                await delayMs(table[kTableGetBackoffDelayMs](retryCount));
+            }
         }
         // return the results by mapping the original ids, so that the results are in the same order
         return ids.map(
@@ -1108,7 +1112,6 @@ class BaseModel {
             DerivedModel[kModelLogger].trace({command}, 'rawQueryIdsBatch');
             response = await table[kTableDDBClient].send(command, sendOptions);
             DerivedModel[kModelLogger].trace({response: response}, 'rawQueryIdsBatch response');
-
             if (response.Items.length > limitRemaining) {
                 yield response.Items.slice(0, limitRemaining).map(item => item[schema.idFieldName]);
                 break;
@@ -1544,7 +1547,13 @@ function DynamoDM(options) {
         },
 
         // Create a table, merging in default options:
-        Table: (tableOptions={}) => {
+        Table: (name, tableOptions={}) => {
+            // support both Table({name:...}) and Table(name, options);
+            if (typeof name === 'object') {
+                tableOptions = name;
+            } else {
+                tableOptions = Object.assign({name}, tableOptions);
+            }
             return new Table(Object.assign(Object.create(null), defaultOptions, tableOptions));
         },
 

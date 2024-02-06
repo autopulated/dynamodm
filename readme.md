@@ -12,7 +12,7 @@ import DynamoDM from 'dynamodm'
 const ddm = DynamoDM()
 
 // get a reference to a table:
-const table = ddm.Table({name: 'my-dynamodb-table'})
+const table = ddm.Table('my-dynamodb-table')
 
 // Create User and Comment models with their JSON schemas in this table:
 const UserSchema = ddm.Schema('user', {
@@ -63,7 +63,7 @@ const commentsForUser = await Comment.queryMany({ user: aUser.id })
 import DynamoDM from 'dynamodm'
 
 const ddm = DynamoDM()
-const table = ddm.Table({name: 'my-dynamodb-table'})
+const table = ddm.Table('my-dynamodb-table')
 
 // a model that has no schema and will allow any data to be
 // stored and loaded:
