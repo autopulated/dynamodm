@@ -98,13 +98,18 @@ const aSchema ddm.Schema('my-model-name', {}, {})
 ```
 
 Valid options:
- * `logger`:  Logging is disabled by default. If a truthy value is passed, this
-   will be passed on to
-   [`pino`](https://getpino.io/#/docs/api?id=options-object) to create a
-   logger, for example `logger:{level:'trace'}` to enable trace-level logging.
- * ... all other options supported by [.Table](#table) or [.Schema](#schema).
+ * `logger`: valid values:
+    * False / undefined: logging is disabled
+    * A pino [`pino`](https://getpino.io) logger (or other logger with a
+      `.child()` method), in which case `logger.child({module:'dynamodm'})` is
+      called to create a logger.
+    * An [pino options
+      object](https://getpino.io/#/docs/api?id=options-object), which will be
+      used to create a new pino instance. For example `logger:{level:'trace'}`
+      to enable trace-level logging.
+ * ... all other options supported by [.Table](#table-tablename-options) or [.Schema](#schemaname-jsonschema-options).
 
-## Table()
+## Table(tableName, options)
 Create a handle to a dynamoDB table. The table stores connection options, model
 types and indexes, and validates compatibility of all the different models
 being used in the same table.

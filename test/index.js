@@ -36,13 +36,22 @@ t.test('table initialisation', async t => {
     });
 
     await t.test('with abstract logger', async t => {
-        const table = require('../')({logger: false}).Table({ name: 'test-table-2', clientOptions});
+        const table = require('../')({logger: false}).Table({ name: 'test-table-abstract-logger', clientOptions});
         table.model(DynamoDM.Schema('emptySchema'));
         await table.ready();
 
         await t.test('call ready multiple times', async () => {
             await table.ready();
         });
+    });
+
+    await t.test('with existing logger', async t => {
+        const pinoInstance = require('pino')({level:'error'});
+        const results = t.capture(pinoInstance, 'child', pinoInstance.child);
+        const table = require('../')({logger: pinoInstance}).Table({ name: 'test-table-pino-logger', clientOptions});
+        table.model(DynamoDM.Schema('emptySchema'));
+        await table.ready();
+        t.match(results(), [{args:[{module:'dynamodm'}]}, {args:[{table:'test-table-pino-logger'}]}], 'should use the provided pino logger to create child loggers');
     });
 
     await t.test('asumme ready', async t => {

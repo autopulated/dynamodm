@@ -1503,10 +1503,17 @@ function generateGettersAndSetters(schema) {
 
 
 const createLogger = (loggingOptions) => {
-    if (loggingOptions){
+    if (typeof loggingOptions?.child === 'function') {
+        // if we were passed an existing pino logger (or abstract logger), or
+        // something that looks like one, create a child logger:
+        return loggingOptions.child({module:'dynamodm'});
+    } else if (loggingOptions){
+        // otherwise if logging options have been passed, create a new pino
+        // instance:
         loggingOptions = (typeof loggingOptions === 'object')? loggingOptions : {};
         return require('pino')(loggingOptions);
     } else {
+        // otherwise logging is completely disabled
         const logger = require('abstract-logging');
         logger.child = () => logger;
         return logger;
