@@ -238,7 +238,7 @@ t.test('wait for index creation', async t => {
     });
 
     // add lots of models, so that creating the indexes for this table takes some amount of time:
-    for (let i = 0; i < 400; i++) {
+    for (let i = 0; i < 200; i++) {
         await (new Model1a({aString:`value ${i}`, bNum:i})).save();
     }
     t.pass('created models ok');
@@ -253,6 +253,57 @@ t.test('wait for index creation', async t => {
     // and check that we can query using the indexes immediately:
     t.equal((await Model1b.queryMany({bNum:4})).length, 1);
     t.equal((await Model1b.queryMany({aString:{$gt: 'value 50'}, bNum:99})).length, 1);
+
+    t.end();
+});
+
+t.test('wait for index creation', async t => {
+    const Schema1_noIndexes = DynamoDM.Schema('1', {
+        properties: {
+            aString: {type:'string'},
+            bNum: {type:'number'},
+        }
+    });
+    const Schema1_withIndexes = DynamoDM.Schema('1', {
+        properties: {
+            aString: {type:'string'},
+            bNum: {type:'number'},
+        }
+    }, {
+        index: {
+            aString:1,
+            indexWithHashAndSortKey: {
+                sortKey:'aString',
+                hashKey:'bNum'
+            }
+        }
+    });
+
+    // first create a table, and wait for its built-in indexes to be created
+    const table1 = DynamoDM.Table({ name: 'test-index-creation-2'}, {clientOptions});
+    const Model1a = table1.model(Schema1_noIndexes);
+    await table1.ready({waitForIndexes:true});
+
+    // and delete it when the test is finished
+    t.teardown(async () => {
+        await table1.deleteTable();
+    });
+
+    // add lots of models, so that creating the indexes for this table takes some amount of time:
+    for (let i = 0; i < 200; i++) {
+        await (new Model1a({aString:`value ${i}`, bNum:i})).save();
+    }
+    t.pass('created models ok');
+
+    // now create another reference to the existing table, which requires more indexes, and wait for them:
+    const table2 = DynamoDM.Table({ name: 'test-index-creation-2'}, {clientOptions});
+    const Model1b = table2.model(Schema1_withIndexes);
+
+    // wait for the indexes to be created
+    await table2.ready({waitForIndexes:false});
+
+    // the index shouldn't be ready yet
+    t.rejects(Model1b.queryMany({bNum:4}), {message:'The table does not have the specified index: indexWithHashAndSortKey'}, "the index shouldn't be ready yet");
 
     t.end();
 });
