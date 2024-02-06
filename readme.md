@@ -110,7 +110,7 @@ limited.
 
 # API
 
-## DynamoDM()
+## DynamoDM(options)
 The DynamoDM() function returns an instance of the API. The API instance holds
 default options (including logging), and provides access to create Tables and
 Schemas, and to the built in schemas.
@@ -130,10 +130,10 @@ const table = ddm.Table('my-table-name')
 const aSchema ddm.Schema('my-model-name', {}, {})
 ```
 
-Valid options:
+Options:
  * `logger`: valid values:
-    * False / undefined: logging is disabled
-    * A pino [`pino`](https://getpino.io) logger (or other logger with a
+    * `false` / `undefined`: logging is disabled
+    * A [`pino`](https://getpino.io) logger (or any other logger with a
       `.child()` method), in which case `logger.child({module:'dynamodm'})` is
       called to create a logger.
     * An [pino options
@@ -143,14 +143,14 @@ Valid options:
  * ... all other options supported by [.Table](#table-tablename-options) or [.Schema](#schemaname-jsonschema-options).
 
 ## Table(tableName, options)
-Create a handle to a dynamoDB table. The table stores connection options, model
+Create a handle to a DynamoDB table. The table stores connection options, model
 types and indexes, and validates compatibility of all the different models
 being used in the same table.
 
 All models must be added to a table before calling either `.ready()` (for full
 validation, including creating the table and indexes if necessary), or
 `.assumeReady()` (for a quick compatibility check, without checking the
-DynamoDB state.
+DynamoDB state).
 
 ```js
 const table = ddm.Table('my-table-name', tableOptions)
@@ -160,19 +160,32 @@ const table = ddm.Table('my-table-name', tableOptions)
 await table.ready()
 ```
 
+Options:
+ * `name`: The name of the dynamodb table (`tableName` may be passed as an
+   `options.name` and `tableName` omitted).
+ * `client`: The
+   [`DynamoDBClient`](https://www.npmjs.com/package/@aws-sdk/client-dynamodb)
+   to be used to connect to DynamoDB, if omitted then one will be created.
+ * `clientOptions`: Options for `DynamoDBClient` creation (ignored if
+   `options.client` is passed).
+ * `retry`: Options for request retries, requests are re-tried when dynamodb
+   [batching limits are
+   exceeded](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.Errors.html#Programming.Errors.RetryAndBackoff).
+   Defaults to`{exponent: 2, delayRandomness: 0.75, maxRetries: 5}`.
+
 ### async Table.ready(options)
 Wait for the table to be ready. The current state of the table is queried and
 it is created if necessary. 
 
 Options:
- * `options.waitForIndexes`: if true then any missing indexes that are required
+ * `waitForIndexes`: if true then any missing indexes that are required
    will also be created. This may take a long time, especially if indexes are
    being created that must be back-filled with existing data. Recommended for
    convenience during development only!
 
 ### Table.assumeReady()
 Check the basic compatibility of the models in this table, and assume it has
-been set up correctly already in dynamodb. Use this instead of .ready() if
+been set up correctly already in dynamodb. Use this instead of `.ready()` if
 using dynanamoDM in a short-lived environment like a lambda function.
 
 ### Table.model(schema)
@@ -181,12 +194,12 @@ Create and return a [`Model`](#model-types) in this table, using the specified
 already been added.
 
 ### async Table.deleteTable()
-Delete the dynamoDB table (sends a `DeleteTableCommand` with the name of this
+Delete the DynamoDB table (sends a `DeleteTableCommand` with the name of this
 table). This will delete all data in the table! Will fail if deletion
 protection has been enabled for the table.
 
 ### async Table.destroyConnection()
-Clears the state of this table, and if the underlying [dynamoDB
+Clears the state of this table, and if the underlying [DynamoDB
 client](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/Package/-aws-sdk-lib-dynamodb/)
 was created by this table (if it was not passed in as an option), calls and
 awaits
@@ -197,8 +210,8 @@ Returns nothing and accepts no options.
 
 ### Table properties
  * `.name`: The name of the table, as passed to the constructor.
- * `.client`: The dynamoDB client for the table.
- * `.docClient`: The [dynamoDB document
+ * `.client`: The DynamoDB client for the table.
+ * `.docClient`: The [DynamoDB document
    client](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/Package/-aws-sdk-lib-dynamodb/)
    for the table.
 
@@ -229,7 +242,7 @@ After creating a schema, [`.methods`](#schemamethods),
 model instances created from this schema.
 
 ### JSON schema for Schemas
-Because DynamoDM uses the [dynamoDB Document
+Because DynamoDM uses the [DynamoDB Document
 client](https://github.com/aws/aws-sdk-js-v3/tree/main/lib/lib-dynamodb#aws-sdklib-dynamodb),
 native javascript types such as Arrays and Objects are converted to their
 DynamoDB types [in the same
@@ -290,7 +303,7 @@ console.log(await Foo.getById(f1.id))
  * `DynamoDM().Timestamp`: Converted to `Date` object on load, Saved as a
    DynamoDB `N` number type (the `.getTime()` value).
  * `DynamoDM().Binary`: Converted to a `Buffer` on load. Saved as DynamoDB `B`
-   binary type. dynamoDB binary types are otherwise returned as `Uint8Array`s.
+   binary type. DynamoDB binary types are otherwise returned as `Uint8Array`s.
 
 ### Built-in schema fragments
 Special fields are defined by using fragments of schema by value.

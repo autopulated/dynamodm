@@ -1,4 +1,4 @@
-### 1.1.0
+## 1.1.0
  * Support options.retry in Table()
  * Support table name as an argument to Table(), in addition to options.name
  * readme updates
