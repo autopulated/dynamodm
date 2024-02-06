@@ -4,8 +4,7 @@
 [![Coverage](https://coveralls.io/repos/github/autopulated/dynamodm/badge.svg?branch=main)](https://coveralls.io/github/autopulated/dynamodm?branch=main)
 [![NPM version](https://img.shields.io/npm/v/dynamodm.svg?style=flat)](https://www.npmjs.com/package/dynamodm)
 
-
-## Quickstart:
+## Quickstart
 ```js
 import DynamoDM from 'dynamodm'
 
@@ -59,12 +58,46 @@ await aComment.save()
 const commentsForUser = await Comment.queryMany({ user: aUser.id })
 ```
 
+## Even Quicker Start: Just Save and Load Documents Without Schemas:
+```js
+import DynamoDM from 'dynamodm'
+
+const ddm = DynamoDM()
+const table = ddm.Table({name: 'my-dynamodb-table'})
+
+// a model that has no schema and will allow any data to be
+// stored and loaded:
+const Model = table.model(ddm.Schema('any'));
+
+const doc = new Model({
+    aKey: 'a value',
+    'another key': {
+        a: 123, b: { c: null }
+    },
+    anArray: [
+        1, true, { x: 123 },
+    ]
+})
+await doc.save();
+
+// all dynamodm documents have an .id field by default, which is
+// used as the table's primary (hash) key:
+const loadedDoc = await Model.getById(doc.id);
+
+// change the document and re-save:
+loadedDoc.aKey = 'a different value';
+await loadedDoc.save();
+```
+
 ## Philosophy
 DynamoDM is designed to make it easy to write simple, scalable, apps using
 DynamoDB.
 
 It supports Single Table Design, where different model types are stored in a
 single DynamoDB table.
+
+The table hash key is used as a unique id for each document, ensuring documents
+are always evenly spread across all partitions.
 
 Not all DynamoDB functions are available, but DynamoDM is designed to be
 efficient, and make it easy to write apps that make the most of DynamoDB's

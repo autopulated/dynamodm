@@ -66,7 +66,7 @@ t.test('table initialisation', async t => {
 });
 
 t.test('table consistency:', async t => {
-    await t.test('throws on inconsistent id field names', async t => {
+    t.test('throws on inconsistent id field names', async t => {
         const table = DynamoDM.Table({ name: 'test-table-errors'});
         table.model(DynamoDM.Schema('schema1'));
         table.model(DynamoDM.Schema('schema2'));
@@ -79,7 +79,7 @@ t.test('table consistency:', async t => {
         t.throws(() => { table.assumeReady(); });
     });
 
-    await t.test('throws on inconsistent type field names', async t => {
+    t.test('throws on inconsistent type field names', async t => {
         const table = DynamoDM.Table({ name: 'test-table-errors'});
         table.model(DynamoDM.Schema('schema1'));
         table.model(DynamoDM.Schema('schema2', {
@@ -95,7 +95,22 @@ t.test('table consistency:', async t => {
         t.rejects(table.ready());
     });
 
-    await t.test('rejects on ready for schema name collisions', async t => {
+    t.test('throws on existing table with different table hash key', async t => {
+        const table1 = DynamoDM.Table({ name: 'test-table-hashkey1'});
+        table1.model(DynamoDM.Schema('schema1'));
+        await table1.ready();
+
+        const table2 = DynamoDM.Table({ name: 'test-table-hashkey1'});
+        table2.model(DynamoDM.Schema('schema1', {properties:{ different_id: DynamoDM.DocIdField }}));
+
+        t.rejects(
+            table2.ready(),
+            { message: 'Table test-table-hashkey1 exists with incompatible key schema [{"AttributeName":"id","KeyType":"HASH"}], the schemas require "different_id" to be the hash key.' },
+            'should reject if an incompatible table exists'
+        );
+    });
+
+    t.test('rejects on ready for schema name collisions', async t => {
         const table = DynamoDM.Table({ name: 'test-table-errors'});
         table.model(DynamoDM.Schema('schema1'));
         table.model(DynamoDM.Schema('schema1'));
@@ -110,7 +125,7 @@ t.test('table consistency:', async t => {
         t.rejects(table.ready(), {message: 'Connection has been destroyed.'}, 'rejects on ready()');
     });
 
-    await t.test('incorrect type index', async t => {
+    t.test('incorrect type index', async t => {
         const table1 = DynamoDM.Table({ name: 'incorrect-type-index'});
         const table2 = DynamoDM.Table({ name: 'incorrect-type-index'});
         table1.model(DynamoDM.Schema('schema1', {
@@ -155,7 +170,7 @@ t.test('table consistency:', async t => {
         t.throws( () => { table.model(schema2); });
     });
 
-    await t.test('throws on invalid table name', async t => {
+    t.test('throws on invalid table name', async t => {
         t.throws(() => {
             DynamoDM.Table({ name: '1'});
         }, /Invalid table name.*/);
@@ -174,6 +189,7 @@ t.test('table consistency:', async t => {
             }));
         }, /Invalid index name.*/);
     });
+    t.end();
 });
 
 t.test('crud:', async t => {

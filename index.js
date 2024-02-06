@@ -186,16 +186,18 @@ const deepCloneObjectsAndArrays = (v) => {
     }
 };
 
+const keySchemaEqual = (a, b) => {
+    return a.AttributeName === b.AttributeName &&
+           a.KeyType === b.KeyType;
+};
+
 const indexDescriptionsEqual = (a, b) => {
     // TODO: not comparing NonKeyAttributes here, but should be
     return a && b &&
            a.IndexName === b.IndexName &&
            a.KeySchema.length === b.KeySchema.length &&
            a.Projection.ProjectionType === b.Projection.ProjectionType &&
-           a.KeySchema.every((el, i) => {
-               return el.AttributeName === b.KeySchema[i].AttributeName &&
-                      el.KeyType === b.KeySchema[i].KeyType;
-           });
+           a.KeySchema.every((el, i) => keySchemaEqual(el, b.KeySchema[i]));
 };
 
 class Table {
@@ -253,6 +255,9 @@ class Table {
         const requiredIndexes = this.#requiredIndexes();
         this[kTableIndices] = requiredIndexes;
         const {uniqueRequiredAttributes} = this.#checkIndexCompatibility(requiredIndexes);
+        const tableKeySchema = [
+            { AttributeName: this.#idFieldName, KeyType: 'HASH' }
+        ];
 
         try {
             await this[kTableDDBClient].send(new CreateTableCommand({
@@ -260,9 +265,7 @@ class Table {
                 // the id field (table key), as well as any attributes referred to
                 // by indexes need to be defined at table creation
                 AttributeDefinitions: uniqueRequiredAttributes,
-                KeySchema: [
-                    { AttributeName: this.#idFieldName, KeyType: 'HASH' }
-                ],
+                KeySchema: tableKeySchema,
                 BillingMode: 'PAY_PER_REQUEST',
                 GlobalSecondaryIndexes: requiredIndexes.map(x => x.index),
             }));
@@ -292,6 +295,15 @@ class Table {
                 /* c8 ignore next 2 */
                 throw new Error(`Table ${this.name} status is ${response.Table.TableStatus}.`);
             }
+
+            // check if the table has the correct key schema (if it already
+            // existed, then it might not):
+            if (created) {
+                if (!response.Table.KeySchema.some((el, i) => keySchemaEqual(el, tableKeySchema[i]))) {
+                    throw new Error(`Table ${this.name} exists with incompatible key schema ${JSON.stringify(response.Table.KeySchema)}, the schemas require "${this.#idFieldName}" to be the hash key.`);
+                }
+            }
+
             // check if we have all the required indexes
             for (const {index, requiredAttributes} of requiredIndexes) {
                 const match = response.Table.GlobalSecondaryIndexes?.find(i => i.IndexName === index.IndexName);
