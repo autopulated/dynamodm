@@ -1,4 +1,5 @@
 const t = require('tap');
+const { DescribeTableCommand } = require('@aws-sdk/client-dynamodb');
 
 const clientOptions = {
     endpoint: 'http://localhost:8000'
@@ -63,6 +64,34 @@ t.test('table initialisation', async t => {
             table.model(DynamoDM.Schema('emptySchema'));
         }, 'should prevent adding further schemas');
     });
+});
+
+t.test('waiting for table creation', async t => {
+    const table = DynamoDM.Table({ name: 'test-table-slow-creation', clientOptions});
+    table.model(DynamoDM.Schema('emptySchema'));
+
+    const originalSend = table.client.send;
+    let callNumber = 0;
+
+    // to test slow table creation we have to mock the client send command,
+    // because dynamodb-local always creates tables instantly.
+    const commandSendResults = t.capture(table.docClient, 'send', async function(command){
+        if (command instanceof DescribeTableCommand) {
+            callNumber += 1;
+            // return a dummy 'CREATING' response for the first DescribeTableCommand call
+            if (callNumber < 2) {
+                return {
+                    Table: { TableStatus: 'CREATING' }
+                };
+            }
+        }
+        // eslint-disable-next-line
+        return originalSend.apply(this, arguments);
+    });
+
+    await table.ready();
+
+    t.equal(commandSendResults().length, 3, 'Should wait for success.');
 });
 
 t.test('table consistency:', async t => {
@@ -173,11 +202,11 @@ t.test('table consistency:', async t => {
     t.test('throws on invalid table name', async t => {
         t.throws(() => {
             DynamoDM.Table({ name: '1'});
-        }, {message:`Invalid table name "1": Must be between 3 and 255 characters long, and may contain only the characters a-z, A-Z, 0-9, '_', '-', and '.'.`}, 'invalid table name as option');
+        }, {message:'Invalid table name "1": Must be between 3 and 255 characters long, and may contain only the characters a-z, A-Z, 0-9, \'_\', \'-\', and \'.\'.'}, 'invalid table name as option');
 
         t.throws(() => {
             DynamoDM.Table('1');
-        }, {message:`Invalid table name "1": Must be between 3 and 255 characters long, and may contain only the characters a-z, A-Z, 0-9, '_', '-', and '.'.`}, 'invalid table name as argument');
+        }, {message:'Invalid table name "1": Must be between 3 and 255 characters long, and may contain only the characters a-z, A-Z, 0-9, \'_\', \'-\', and \'.\'.'}, 'invalid table name as argument');
 
         t.throws(() => {
             DynamoDM.Table();
