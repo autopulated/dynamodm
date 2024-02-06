@@ -234,6 +234,66 @@ t.test('table consistency:', async t => {
     t.end();
 });
 
+t.test('index creation fails', async t => {
+    const Schema1_noIndexes = DynamoDM.Schema('1', {
+        properties: {
+            aString: {type:'string'},
+            bNum: {type:'number'},
+        }
+    });
+    const Schema1_withIndexes = DynamoDM.Schema('1', {
+        properties: {
+            aString: {type:'string'},
+            bNum: {type:'number'},
+        }
+    }, {
+        index: {
+            aString:1,
+            indexWithHashAndSortKey: {
+                sortKey:'aString',
+                hashKey:'bNum'
+            }
+        }
+    });
+    // make sure the table already exists, but without the index:
+    const existing = DynamoDM.Table({ name: 'test-table-failed-index-creation', clientOptions});
+    existing.model(Schema1_noIndexes);
+    await existing.ready();
+
+    t.teardown(async () => {
+        await existing.deleteTable();
+    });
+
+    // and then create another handle that should try to create an index on the existing table:
+    const table = DynamoDM.Table({ name: 'test-table-failed-index-creation', clientOptions});
+    table.model(Schema1_withIndexes);
+
+    const originalSend = table.client.send;
+    let callNumber = 0;
+
+    // to test failing index creation we need to mock the client send function:
+    const commandSendResults = t.capture(table.docClient, 'send', async function(command){
+        if (command instanceof DescribeTableCommand) {
+            callNumber += 1;
+            // return a dummy 'ARCHIVED' response for the second DescribeTableCommand call
+            if (callNumber >= 3) {
+                return {
+                    Table: { TableStatus: 'ARCHIVED' }
+                };
+            }
+        }
+        // eslint-disable-next-line
+        return originalSend.apply(this, arguments);
+    });
+
+    await t.rejects(table.ready({waitForIndexes: true}), { message:"Table test-table-failed-index-creation status is ARCHIVED, index statuses are []."}, 'should reject with the invalid status');
+
+    const r = commandSendResults();
+    t.equal(r.length, 5);
+
+    t.end();
+});
+
 t.test('wait for index creation', async t => {
     const Schema1_noIndexes = DynamoDM.Schema('1', {
         properties: {
@@ -286,7 +346,7 @@ t.test('wait for index creation', async t => {
     t.end();
 });
 
-t.test('wait for index creation', async t => {
+t.test("don't wait for index creation", async t => {
     const Schema1_noIndexes = DynamoDM.Schema('1', {
         properties: {
             aString: {type:'string'},

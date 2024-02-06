@@ -550,11 +550,11 @@ class Table {
             if (response.Table.TableStatus === 'ACTIVE' &&
                 (response.Table.GlobalSecondaryIndexes || []).every(gsi => gsi.IndexStatus === 'ACTIVE')) {
                 break;
-            } else if (['UPDATING', 'ACTIVE'].includes(response.Table.TableStatus) ||
+            } else if (['UPDATING', 'ACTIVE'].includes(response.Table.TableStatus) &&
                 (response.Table.GlobalSecondaryIndexes || []).every(gsi => ['CREATING', 'UPDATING', 'ACTIVE'].includes(gsi.IndexStatus))) {
                 await delayMs(500);
             } else {
-                throw new Error(`Table ${this.name} status is ${response.Table.TableStatus}, index statuses are ${(response.Table.GlobalSecondaryIndexes || []).map(gsi => gsi.IndexStatus).join(', ')}.`);
+                throw new Error(`Table ${this.name} status is ${response.Table.TableStatus}, index statuses are [${(response.Table.GlobalSecondaryIndexes || []).map(gsi => gsi.IndexStatus).join(', ')}].`);
             }
         }
     }
