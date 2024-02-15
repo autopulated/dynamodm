@@ -233,8 +233,10 @@ fields must all be compatible (for example all models must use the same names
 for their ID fields and type fields).
 
 Supported options:
- * `options.index`: The indexes for this schema, if any.
- * `options.generateId`: A function used to generate a new id for documents of this type. Defaults to ``` () => `${schema.name}.${new ObjectId()}` ```
+ * `options.index`: The indexes for this schema, if any. See [Indexing
+   Documents](#indexing-documents) for details.
+ * `options.generateId`: A function used to generate a new id for documents of
+   this type. Defaults to ``` () => `${schema.name}.${new ObjectId()}` ```
 
 After creating a schema, [`.methods`](#schemamethods),
 [`.statics`](#schemastatics), [`.virtuals`](#schemavirtuals), and
@@ -283,12 +285,23 @@ console.log(await Foo.getById(f1.id))
 ```
 
 Defining a model with a timestamp field (a Date object on the model which is
-stored as a number in DynamoDB):
+stored as a number in DynamoDB), which has an index that can be used for range
+queries:
 ```js
 const CommentSchema = table.Schema('comment', {
     properties: {
         text: {type: 'string'}
         commentedAt: DynamoDM().Timestamp,
+    }
+}, {
+    index: {
+        myFirstIndex: {
+            // every index must have a hash key for which an exact
+            // value is supplied to any query. The built-in .type
+            // field is often a sensible choice of hash key:
+            hashKey: "type",
+            sortKey: "commentedAt"
+        }
     }
 })
 const Comment = table.model(CommentSchema)
@@ -296,6 +309,13 @@ const c1 = await (new Comment({ text: 'some text', commentedAt: new Date() })).s
 
 // { text: 'some text', commentedAt: 2028-02-29T16:43:53.656Z, type:'comment', id: ... }
 console.log(await Foo.getById(f1.id)) 
+
+const recentComments = await Comment.queryMany({ 
+    type: 'comment',
+    commentedAt: { $gt: new Date(Date.now() - 60*60*24*1000) }
+})
+// [ { text: 'some text', commentedAt: 2028-02-29T16:43:53.656Z, type:'comment', id: ... } ]
+console.log(recentComments) 
 
 ```
 
@@ -307,30 +327,42 @@ console.log(await Foo.getById(f1.id))
 
 ### Built-in schema fragments
 Special fields are defined by using fragments of schema by value.
- * `DynamoDM().DocIdField`
- * `DynamoDM().TypeField`
- * `DynamoDM().CreatedAtField`
- * `DynamoDM().UpdateAtField`
+ * `DynamoDM().DocIdField`: used to indicate the id field, used by getById and
+   other methods. The default id field name is `id`.
+ * `DynamoDM().TypeField`: used to indicate the type field, which stores the
+   name of the model that a saved document was created with. The default type
+   field name is `type`.
+ * `DynamoDM().CreatedAtField`: used to indicate a timestamp field that is
+   updated when a model is first created by dynamodm. This field is not used
+   unless you include this schema fragment in a model's schema.
+ * `DynamoDM().UpdateAtField`: used to indicate a timestamp field that is
+   updated whenever `.save()` is called on a document. This field is not used
+   unless you include this schema fragment in a model's schema.
 
-Declaring models that use `._dynamodm_id` as the id field, instead of the default `.id`:
+All models in the same `Table` must share the same .id and .type fields
+identified by the built-in `DocIdField` and `TypeField` schemas. If they don't
+then an error will be thrown when calling `table.ready()`.
 
+
+For example, declaring models that use `._dynamodm_id` as the id field, instead of
+the default `.id`:
 ```js
 import DynamoDM from 'dynamodm'
 const ddm = DynamoDM()
 
 const table = ddm.Table('my-table-name');
 
-const Model1Schema = table.Schema('m1, {
+const Model1 table.model(ddm.Schema('m1', {
     properties: {
         _dynamodm_id: ddm.DocIdField
     }
-});
+}));
 
-const Model2Schema = table.Schema('m2, {
+const Model2 = table.model(ddm.Schema('m2, {
     properties: {
         _dynamodm_id: ddm.DocIdField
     }
-});
+}));
 
 // if any models have been added to the table that use a different id field
 // name, this will throw:
@@ -526,7 +558,7 @@ await aComment.delete();
 ```
 
 ### async Model.toObject({virtuals, ...converterOptions})
-Convert a document into a plain object representation (e.g. suitable for JSON
+Convert a document into a plain object representation (i.e. suitable for JSON
 stringification):
 
 Note that this method is asynchronous (returns a Promise that must be awaited),
@@ -543,22 +575,425 @@ await aComment.save();
 const stingified = JSON.stringify(await aComment.toObject());
 ```
 
-## Getting Documents by id
+## Getting Documents by ID
 ### static async Model.getById(id)
+Get a document by its ID. By default models use `.id` as the ID field. It's
+possible to change this by using the [built-in schema
+fragments](#built-in-schema-fragments) in your model's schema.
+
+With the default ID field (`.id`):
+```js
+const aComment = await Comemnt.getById(someId);
+// aComment.id === someId
+```
+
+With a custom ID field:
+```js
+import DynamoDM from 'dynamodm'
+const ddm = DynamoDM()
+
+const table = ddm.Table('my-table-name');
+
+const FooSchema = ddm.Schema('foo', {
+    properties: {
+        _dynamodm_id: ddm.DocIdField
+    }
+});
+const Foo = table.model(FooSchema);
+
+// if any models have been added to the table that use a different id field
+// name, this will throw:
+await table.ready();
+
+const a = await (new Foo()).save();
+const b = Foo.getById(a._dynamodm_id);
+```
+
 ### static async Model.getByIds([id, ...])
+As [`Model.getById`](#static-async-model-getbyid-id), but accepts an array of
+up to 100 ids to be fetched in a batch.
 
 ## Finding and Querying Documents
+
+### Query Format
+The query API accepts mongo-like queries, of the form
+```js
+{ fieldName: valueToSearchFor }
+```
+
+For indexes over a single field (where the single field is the hash index)
+values can only be queried by equality. However since Global Secondary Indexes
+may contain multiple values for the same hash key multiple results may still
+match the query.
+
+A limited set of non-equality query operators are supported. They may be used
+only on fields for which an index with a sort key (also known as a range key)
+has been declared, and always require a value to be specified for the
+corresponding index's hash key.
+
+See [Indexing Documents](#indexing-documents) for declaring indexes.
+
+ * `$gt`: Find items where the specified field has a value strictly greater than
+   the supplied value.
+   ```js
+   {
+       a: "some value", // the .a field must be the GSI hash key
+       b: { $gt: 123 }  // the .b field must be the GSI sort key
+   }
+   ```
+ * `$gte`: Find items where the specified field has a value greater than or
+   equal to the supplied value.
+   ```js
+   {
+       a: "some value", // the .a field must be the GSI hash key
+       b: { $gte: 123 } // the .b field must be the GSI sort key
+   }
+   ```
+ * `$lt`: Find items where the specified field has a value strictly less than
+   the supplied value.
+   ```js
+   {
+       a: "some value", // the .a field must be the GSI hash key
+       b: { $lt: 123 }  // the .b field must be the GSI sort key
+   }
+   ```
+ * `$lte` Find items where the specified field has a value less than or equal
+   to the supplied value.
+   ```js
+   {
+       a: "some value", // the .a field must be the GSI hash key
+       b: { $lte: 123 } // the .b field must be the GSI sort key
+   }
+   ```
+
+#### Query Format examples
+**Querying for a single document property** (a dynamodb attribute) named
+`someField`, equal to a value `"someValue"`. This requires an index that
+includes `someField` as its hash key:`
+```js
+const result = await Comment.queryOne({
+    someField: "someValue"
+})
+```
+
+**Querying for a two properties** named `field1`, and `field2`, equal to
+values `"v1"` and `2`. This requires an index that either:
+ * has `field1` as its hash key, and `field2` as its sort key, or:
+ * has `field2` as its hash key, and `field2` as its sort key.
+
+Note that this query may return multiple results, since neither hash key nor
+sort key values in global secondary indexes are necessarily unique.
+```js
+const results = await Comment.queryMany({
+    field1: "v1",
+    field2: 2
+})
+```
+
+If you are always querying for equality on two fields, then consider combining
+them into a single field, and using [`.virtuals`](#schemavirtuals) to make them
+separately accessible.
+
+**Querying for a value range.** Using the range operators `$lt`, `$lte`, `$gt`,
+or `$gte` requires a sort key, and always also requires that a hash key is specified
+by value.
+
+```js
+const MyModelSchema = ddb.Schema({
+    properties: {
+        field1: {type: 'string'},
+        field2: {type: 'string'}
+    }
+}, {
+    index: {
+        myIndexName: {
+            hashKey: 'field1',
+            sortKey: 'field2'
+        }
+    }
+})
+const MyModel = table.model(MyModelSchema);
+const results = await MyModel.queryMany({
+    field1: "v1",
+    field2: {
+        $gt: "2013-01-28"
+    }
+})
+```
+
+
+#### Order of query results
+If the query includes a sort key, then results will be ordered by the sort key.
+Otherwise the order of query results is undefined. The order can be reversed by
+setting `options.rawQueryOptions.ScanIndexForward: false`.
+
 ### static async Model.queryOne(query, options)
+Query for a single document. See [query format](#query-format) for the
+supported query format.
+
+Supported options:
+ * abortSignal: The `.signal` of an
+   [`AbortController`](https://nodejs.org/api/globals.html#class-abortcontroller),
+   which may be used to interrupt the asynchronous request.
+ * startAfter: A document after which to search for the next query result. This
+   can be used for pagination by returning the result from a previous query.
+ * rawQueryOptions
+ * rawFetchOptions
+
+Resolves with a document instance of the model type on which this was called,
+or null if there were no results. Rejects if there's an error.
+
 ### static async Model.queryOneId(query, options)
+Query for the ID of a single model. See [query format](#query-format) for the
+supported query format.
+
+Supported options:
+ * abortSignal: The `.signal` of an
+   [`AbortController`](https://nodejs.org/api/globals.html#class-abortcontroller),
+   which may be used to interrupt the asynchronous request.
+ * startAfter: A document after which to search for the next query result. This
+   can be used for pagination by returning the result from a previous query.
+ * rawQueryOptions
+
+Resolves with a document id (string), or null if no document matched the query.
+Rejects if there's an error.
+
 ### static async Model.queryMany(query, options)
+Query for an array of documents. See [query format](#query-format) for the
+supported query format. 
+
+Supported options:
+ * limit: The maxuimum number of models to return. May be combined with
+   `startAfter` to paginate restults.
+ * abortSignal: The `.signal` of an
+   [`AbortController`](https://nodejs.org/api/globals.html#class-abortcontroller),
+   which may be used to interrupt the asynchronous request.
+ * startAfter: A document after which to search for the next query result. This
+   can be used for pagination by returning the result from a previous query.
+ * rawQueryOptions
+ * rawFetchOptions
+
+Resolves with an array of document instances of the model type on which this was
+called, or an empty array if there were no results. Rejects if there's an
+error.
+
 ### static async Model.queryManyIds(query, options)
+Query for an array of document Ids. See [query format](#query-format) for the
+supported query format. 
+
+Supported options:
+ * limit: The maxuimum number of models to return. May be combined with
+   `startAfter` to paginate restults.
+ * abortSignal: The `.signal` of an
+   [`AbortController`](https://nodejs.org/api/globals.html#class-abortcontroller),
+   which may be used to interrupt the asynchronous request.
+ * startAfter: A document after which to search for the next query result. This
+   can be used for pagination by returning the result from a previous query.
+ * rawQueryOptions
+
+Resolves with an array of document ids (strings), or an empty array if there
+were no results. Rejects if there's an error.
+
 
 ## The raw Query API
+The raw query API allows queries to be executed with a raw [lib-dynamodb
+query](https://www.npmjs.com/package/@aws-sdk/lib-dynamodb), of the form:
+
+```js
+{
+    IndexName: <name of index to query against>,
+    KeyConditionExpression: <key condition expression>,
+    ExpressionAttributeValues: <expression attribute values>,
+    ExpressionAttributeNames: <expression attribute names>,
+    Limit: <query document limit>,
+    ...
+}
+```
+The index name is mandatory, since it cannot be determined automatically,
+however the table name does not need to be provided.
+
+The [key condition
+expression](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Query.KeyConditionExpressions.html),
+[expression attribute
+values](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ExpressionAttributeValues.html),
+and [expression attribute
+names](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ExpressionAttributeNames.html)
+must all be specified. Other values supported by the [query
+command](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/Package/-aws-sdk-client-dynamodb/Interface/QueryCommandInput/)
+are optional.
+
 ### static async Model.rawQueryOneId(query, rawOptions)
-### static async Model.rawQueryOneId(query, rawOptions)
-### static async Model.rawQueryOneId(query, rawOptions)
+Send a raw query command and return a single document ID.
+
+Supported rawOptions:
+ * `abortSignal`: The `.signal` of an
+   [`AbortController`](https://nodejs.org/api/globals.html#class-abortcontroller),
+   which may be used to interrupt the asynchronous request.
+
+### static async Model.rawQueryManyIds(query, rawOptions)
+Send a raw query command and return an array of document IDs.
+
+Supported rawOptions:
+ * `limit`: maximum number of IDs to return. Detauls to Infinity.
+ * `abortSignal`: The `.signal` of an
+   [`AbortController`](https://nodejs.org/api/globals.html#class-abortcontroller),
+   which may be used to interrupt the asynchronous request.
+
+### static async* Model.rawQueryIteratorIds(query, rawOptions)
+An async generator that yields IDs (up to rawOptions.limit, which may be Infinity).
+
+Supported rawOptions:
+ * `limit`: maximum number of IDs to return. Detauls to Infinity.
+ * `abortSignal`: The `.signal` of an
+   [`AbortController`](https://nodejs.org/api/globals.html#class-abortcontroller),
+   which may be used to interrupt the asynchronous request.
+
 
 ## Indexing Documents
+DynamoDM supports only Global Secondary Indexes. Any document field name which
+is indexed must have the same type in all documents in the table in which it
+occurs (this is checked by `.ready()`).
+
+An index may have either:
+ * just a hash key (which need not be unique), which only supports queries by
+   exact value.
+ * Or a hash key and a sort key (range key), where the hash key must be
+   specified by exact value, but the sort key supports range queries.
+
+To specify an index, use the `.index` option when creating a
+[Schema](https://github.com/autopulated/dynamodm?tab=readme-ov-file#schemaname-jsonschema-options):
+
+The `.index` option is an object where the fields are the names of the indexes,
+and the value is either an object specifing the hash key and optionally the
+sort key for the index, or it may just be the value '1' or true indicating that
+the index name is the same as the hash key of the index, and there is no sort
+key:
+```js
+{
+    // an index called anIndexName where .field1 is the 
+    // hash key and .field2 is the sort key
+    anIndexName: {
+        hashKey: 'field1',
+        sortKey: 'field2',
+    },
+
+    // an index called 'field3' wheres `field3` is the hash 
+    // key, and there is no sort key:
+    field3: 1
+}
+```
+
+All fields referred to in the index option must be defined in the schema. This
+is because the types of the fields need to be known to use and create the
+index.
+
+Example:
+```js
+const CommentSchema = ddm.Schema('c', {
+    properties: {
+        text: {type: 'string' },
+        user: ddm.DocId,
+        section: {type: 'string' },
+        createdAt: ddm.CreatedAtField
+    }
+}, {
+    index: {
+        findByUser: {
+            hashKey: 'user',
+            sortKey: 'createdAt'
+        },
+        section: 1
+    }
+})
+
+const Comment = table.model(CommentSchema)
+const c1 = await (new Comment({ text: 'some text', commentedAt: new Date() })).save()
+
+// { text: 'some text', commentedAt: 2028-02-29T16:43:53.656Z, type:'comment', id: ... }
+console.log(await Foo.getById(f1.id)) 
+```
+
+
+### Caveats for Indexes
+A dynamoDB table supports up to 20 global secondary indexes in the default
+quota. DynamoDM creates one built-in index on the id field.
+
+All documents in the same table share the same indexes, and all documents that
+include a field that is used as the hash key of an index will be included in
+that index, even if they are not the same type as the schema that declared the
+index.
+
+This can be an advantageous, by allowing multiple document types to share a
+single index (if multiple models declare the same index, DynamoDM will only
+create it once), but care must be taken to ensure that your query only returns
+documents of the desired type.
+
+The easiest way to share indexes between model types is by using the built-in
+[type field](#built-in-schema-fragments) as the hash key of the index, for
+example, to allow both `Comments` and `Uploads` belonging to a particular user
+to be found using the same index:
+
+```js
+import DynamoDM from 'dynamodm'
+
+// get an instance of the API (options can be passed here)
+const ddm = DynamoDM()
+
+// get a reference to a table:
+const table = ddm.Table('my-dynamodb-table')
+
+// Create User and Comment models with their JSON schemas in this table:
+const UserSchema = ddm.Schema('user', { })
+
+const CommentSchema = ddm.Schema('comment', {
+    properties: {
+        text: { type: 'string' },
+        user: ddm.DocId
+    }
+}, {
+    index: {
+        findByUser: {
+            hashKey: 'type',
+            sortKey: 'user'
+        }
+    }
+})
+
+const UploadSchema = ddm.Schema('upload', {
+    properties: {
+        url: { type: 'string' },
+        user: ddm.DocId
+    }
+}, {
+    index: {
+        findByUser: {
+            hashKey: 'type',
+            sortKey: 'user'
+        }
+    }
+})
+
+const User = table.model(UserSchema)
+const Comment = table.model(CommentSchema)
+const Upload = table.model(UploadSchema)
+
+await table.ready()
+
+// both these queries will use the findByUser index. Since the hash
+// key of the index is `type`, we can be sure that only documents 
+// of the correct type are returned to each query:
+const commentsForUser = await Comment.queryMany({ 
+    type: CommentSchema.name, user: aUser.id
+})
+const uploadsForUser = await Upload.queryMany({
+    type: UploadSchema.name, user: aUser.id
+})
+```
+
+
+## Bugs, Questions, Problems?
+Please open a [github issue](https://github.com/autopulated/dynamodm/issues) :)
+
 
 ## Sponsors
 This project is supported by:

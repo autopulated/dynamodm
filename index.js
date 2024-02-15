@@ -1000,6 +1000,7 @@ class BaseModel {
 
     // get an array of instances of this schema by id
     // At most 100 items can be fetched at one time (the limit to the dynamodb BatchGetItem request size)
+    // TODO: the 100 item limit should be lifted here by splitting into 100-item batches internally.
     static async #getByIds(DerivedModel, ids, rawOptions) {
         // only the ConsistentRead option is supported
         const { ConsistentRead, abortSignal } = rawOptions ?? {};
