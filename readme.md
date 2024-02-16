@@ -687,6 +687,24 @@ See [Indexing Documents](#indexing-documents) for declaring indexes.
        b: { $lte: 123 } // the .b field must be the GSI sort key
    }
    ```
+ * `$between` Find items where the specified field has a value greater than or
+   equal to the first value, and less than or equal to the second value
+   ```js
+   {
+       a: "some value", // the .a field must be the GSI hash key
+       b: { $between: [123, 234] } // the .b field must be the GSI sort key
+   }
+   ```
+ * `$begins` Find items where the specified field has a value greater than or
+   equal to the first value, and less than or equal to the second value
+   ```js
+   {
+       a: "some value", // the .a field must be the GSI hash key
+       // the .b field must be the GSI sort key, and the type
+       // of .b must be string.
+       b: { $begins: "some prefix" }
+   }
+   ```
 
 #### Query Format examples
 **Querying for a single document property** (a dynamodb attribute) named
@@ -717,8 +735,8 @@ them into a single field, and using [`.virtuals`](#schemavirtuals) to make them
 separately accessible.
 
 **Querying for a value range.** Using the range operators `$lt`, `$lte`, `$gt`,
-or `$gte` requires a sort key, and always also requires that a hash key is specified
-by value.
+`$gte`, `$between` or `$begins` requires a sort key, and always also requires
+that a hash key is specified by value.
 
 ```js
 const MyModelSchema = ddb.Schema({

@@ -286,7 +286,7 @@ t.test('index creation fails', async t => {
         return originalSend.apply(this, arguments);
     });
 
-    await t.rejects(table.ready({waitForIndexes: true}), { message:"Table test-table-failed-index-creation status is ARCHIVED, index statuses are []."}, 'should reject with the invalid status');
+    await t.rejects(table.ready({waitForIndexes: true}), { message:'Table test-table-failed-index-creation status is ARCHIVED, index statuses are [].'}, 'should reject with the invalid status');
 
     const r = commandSendResults();
     t.equal(r.length, 5);

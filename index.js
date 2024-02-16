@@ -146,7 +146,22 @@ const indexSpecSchema = ajv.compile({
 const validTableName = /^[a-zA-Z0-9_.-]{3,255}$/;
 const validIndexName = /^[a-zA-Z0-9_.-]{3,255}$/;
 
-const supportedQueryConditions = new Map([['$gt','>'], ['$gte','>='], ['$lt','<'], ['$lte','<=']]);
+const kConditionEqual = Symbol('=');
+const kConditionLT  = Symbol('<');
+const kConditionLTE = Symbol('<=');
+const kConditionGT  = Symbol('>');
+const kConditionGTE = Symbol('>=');
+const kConditionBetween = Symbol('between');
+const kConditionBegins = Symbol('begins');
+const supportedQueryConditions = new Map([
+    // dynamodm query condition => [internal identifier, number of arguments required]
+    ['$gt', [kConditionGT, 1]],
+    ['$gte', [kConditionGTE, 1]],
+    ['$lt', [kConditionLT, 1]],
+    ['$lte', [kConditionLTE, 1]],
+    ['$between', [kConditionBetween, 2]],
+    ['$begins', [kConditionBegins, 1]]
+]);
 
 const kModelTable = Symbol();
 const kModelSchema = Symbol();
@@ -1157,10 +1172,11 @@ class BaseModel {
     // }
 
     static #queryEntries(queryObject) {
-        // return {key: keyFieldName, value: queryValue, condition: '=','<','>'} based on a mongodb-like query object:
-        // { key1: value1} -> {key: key1, value: value1, condition: '='}
-        // { key1: {$gt: value1}} -> {key: key1, value: value1, condition: '>'}
-        // { key1: {$lt: value1}} -> {key: key1, value: value1, condition: '<'}
+        // return {key: keyFieldName, values: [queryValue], condition: '$eq','$lt','$gt'} based on a mongodb-like query object:
+        // { key1: value1} -> {key: key1, values: [value1], condition: '$eq'}
+        // { key1: {$gt: value1}} -> {key: key1, values: [value1], condition: '$gt'}
+        // { key1: {$lt: value1}} -> {key: key1, values: pvalue1], condition: '$lt'}
+        // { key1: {$between: [v1, v2]}} -> {key: key1, values: [v1, v2], condition: '$between'}
         return Object.entries(queryObject).map( ([k,v]) => {
             if (typeof v === 'object') {
                 const conditions = Object.keys(v).filter(k => k.startsWith('$'));
@@ -1169,17 +1185,48 @@ class BaseModel {
                 } else if (conditions.length === 1) {
                     const conditionOp = supportedQueryConditions.get(conditions[0]);
                     if (conditionOp) {
-                        return {key:k, value: v[conditions[0]], condition:conditionOp};
+                        if (conditionOp[1] === 1) {
+                            // single value condition
+                            return {key:k, values: [v[conditions[0]]], condition: conditionOp[0]};
+                        } else {
+                            // multiple value condition (values should be an array)
+                            if ((!Array.isArray(v[conditions[0]])) || v[conditions[0]].length !== conditionOp[1]) {
+                                throw new Error(`Condition "${conditions[0]}" in query requires an array of ${conditionOp[1]} values.`);
+                            }
+                            return {key:k, values: v[conditions[0]], condition: conditionOp[0]};
+                        }
                     } else {
-                        throw new Error(`Condition "${conditions[0]}" is not supported.`);
+                        throw new Error(`Condition "${conditions[0]}" is not supported. Supported conditions are: ${[...supportedQueryConditions.keys()].join(', ')}.`);
                     }
                 } else {
-                    return {key:k, value:v, condition:'='};
+                    return {key:k, values:[v], condition: kConditionEqual};
                 }
             } else {
-                return {key:k, value:v, condition:'='};
+                return {key:k, values:[v], condition: kConditionEqual};
             }
         });
+    }
+
+    static #keyConditionExpressionForQueryEntry({condition}, i) {
+        if (condition === kConditionEqual) {
+            return `#n${i} = :v${i}x0`;
+        } else if (condition === kConditionLT) {
+            return `#n${i} < :v${i}x0`;
+        } else if (condition === kConditionLTE) {
+            return `#n${i} <= :v${i}x0`;
+        } else if (condition === kConditionGT) {
+            return `#n${i} > :v${i}x0`;
+        } else if (condition === kConditionGTE) {
+            return `#n${i} >= :v${i}x0`;
+        } else if (condition === kConditionBetween) {
+            return `#n${i} BETWEEN :v${i}x0 AND :v${i}x1`;
+        } else if (condition === kConditionBegins) {
+            return `begins_with(#n${i}, :v${i}x0)`;
+            // (not reachable)
+            /* c8 ignore next 3 */
+        } else {
+            throw new Error('Unsupported query condition.');
+        }
     }
 
     // convert the simple mongoose-style object query (+options) into a raw query for DynamoDB for the specified model type:
@@ -1200,14 +1247,17 @@ class BaseModel {
             // TODO: possibly in the future indexes with additional projected attributes could be supported, and additional query entries could be converted into a FilterExpression
             throw new Error(`Unsupported query: "${inspect(query, {breakLength:Infinity})}" Queries must have at most two properties to match against index hash and range attributes.`);
         }
+        if (!queryEntries.some(e => e.condition === kConditionEqual)) {
+            throw new Error(`Unsupported query: "${inspect(query, {breakLength:Infinity})}" Queries must include an equality condition for the index hash key.`);
+        }
         // check all the indexes for ones that include all of the query entries:
         let matchingIndexes = table[kTableIndices].filter(index => {
             if (queryEntries.length === 1) {
                 return index.hashKey === queryEntries[0].key;
             } else {
-                if ((index.hashKey === queryEntries[0].key && queryEntries[0].condition === '=') && index.sortKey === queryEntries[1].key) {
+                if ((index.hashKey === queryEntries[0].key && queryEntries[0].condition === kConditionEqual) && index.sortKey === queryEntries[1].key) {
                     return true;
-                } else if ((index.hashKey === queryEntries[1].key && queryEntries[1].condition === '=') && index.sortKey === queryEntries[0].key) {
+                } else if ((index.hashKey === queryEntries[1].key && queryEntries[1].condition === kConditionEqual) && index.sortKey === queryEntries[0].key) {
                     return true;
                 } else {
                     return false;
@@ -1232,14 +1282,16 @@ class BaseModel {
             // check query values against schema, and marshall:
             const keySchema = schema.source.properties[entry.key];
             if (keySchema) {
-                const valid = defaultIgnoringAjv.validate(keySchema, entry.value);
-                if (!valid) {
-                    const e = new Error(`Value does not match schema for ${entry.key}: ${defaultIgnoringAjv.errors[0]?.instancePath ?? ''} ${defaultIgnoringAjv.errors[0]?.message}.`);
-                    e.validationErrors = defaultIgnoringAjv.errors;
-                    throw e;
+                for (const v of entry.values) {
+                    const valid = defaultIgnoringAjv.validate(keySchema, v);
+                    if (!valid) {
+                        const e = new Error(`Value does not match schema for ${entry.key}: ${defaultIgnoringAjv.errors[0]?.instancePath ?? ''} ${defaultIgnoringAjv.errors[0]?.message}.`);
+                        e.validationErrors = defaultIgnoringAjv.errors;
+                        throw e;
+                    }
                 }
             }
-            entry.value = marshallValue(keySchema, entry.value);
+            entry.values = entry.values.map(v => marshallValue(keySchema, v));
         }
         let ExclusiveStartKey;
         if (startAfter) {
@@ -1254,9 +1306,15 @@ class BaseModel {
                 ...(index.sortKey && {[index.sortKey]: options.startAfter[index.sortKey]}),
             };
         }
-        const KeyConditionExpression    = queryEntries.map((v,i) => `#fieldName${i} ${v.condition} :fieldValue${i}`).join(' AND ');
-        const mergedExprAttributeValues = Object.fromEntries(queryEntries.map(({value},i) => [`:fieldValue${i}`, value]).concat(Object.entries(ExpressionAttributeValues ?? {})));
-        const mergedExprAttributeNames  = Object.fromEntries(queryEntries.map(({key},i) => [`#fieldName${i}`, key]).concat(Object.entries(ExpressionAttributeNames ?? {})));
+
+        const KeyConditionExpression = queryEntries.map(this.#keyConditionExpressionForQueryEntry).join(' AND ');
+        const mergedExprAttributeValues = Object.fromEntries(
+            queryEntries.map(
+                ({values},i) => values.map( (v,j) => [`:v${i}x${j}`, v])
+            ).flat()
+            .concat(Object.entries(ExpressionAttributeValues ?? {}))
+        );
+        const mergedExprAttributeNames  = Object.fromEntries(queryEntries.map(({key},i) => [`#n${i}`, key]).concat(Object.entries(ExpressionAttributeNames ?? {})));
 
         return Object.assign(Object.create(null), {
             IndexName: index.index.IndexName,

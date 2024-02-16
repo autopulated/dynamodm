@@ -29,6 +29,7 @@ t.test('queries:', async t => {
         properties: {
             id:           DynamoDM.DocIdField,
             barVal:       {type: 'number'},
+            barValStr:    {type: 'string'},
             blob:         DynamoDM.Binary
         },
         required:['barVal']
@@ -37,6 +38,10 @@ t.test('queries:', async t => {
             barValRange: {
                 hashKey: 'type',
                 sortKey: 'barVal'
+            },
+            barValRangeStr: {
+                hashKey: 'type',
+                sortKey: 'barValStr'
             }
         }
     });
@@ -138,7 +143,7 @@ t.test('queries:', async t => {
     }
     const N = 10;
     for (let i = 0; i < N; i++) {
-        await new Bar({barVal:i, blob: Buffer.from(`hello query ${i}`), }).save();
+        await new Bar({barVal:i, barValStr:`bar value ${i%3}${i}`, blob: Buffer.from(`hello query ${i}`), }).save();
         await new IndexedString({someN:i, someString:`string number ${i}`, someOtherString:'constant value' }).save();
         await new IndexedTs({someN:i, someTs:(new Date(i*1e7)) }).save();
         await new IndexedNumberAndBinary({num:i, blob: Buffer.from(`hello query ${i%4}`), }).save();
@@ -382,7 +387,13 @@ t.test('queries:', async t => {
             t.test('invalid queries', async t => {
                 t.rejects(Foo.queryMany({type: 'namespace.foo', fooVal:3 }), {message:'Unsupported query: "{ type: \'namespace.foo\', fooVal: 3 }". No index found for query fields [type, fooVal]'}, 'rejects non-queryable extra parameters');
                 t.rejects(IndexedNumberAndBinary.queryMany({'blob': Buffer.from('hello query 3'), 'num':7, id:'123' }), {message:'Unsupported query: "{ blob: <Buffer 68 65 6c 6c 6f 20 71 75 65 72 79 20 33>, num: 7, id: \'123\' }" Queries must have at most two properties to match against index hash and range attributes.'}, 'rejects more than two parameters');
-                t.rejects(IndexedNumberAndBinary.queryMany({num:{$gt:0, $lt:2}}), {message:'Only a single $gt/$gte/$lt/$lte condition is supported in the simple query api.'}, 'rejects multiple conditions');
+                t.rejects(IndexedNumberAndBinary.queryMany({num:{$gt:0, $lt:2}}), {message:'Only a single $gt/$gte/$lt/$lte/$between/$begins condition is supported in the simple query api.'}, 'rejects multiple conditions');
+                t.rejects(IndexedNumberAndBinary.queryMany({num:{$gt:0}, blob:{$gte:Buffer.from('hello query 3')}}), {message:'Unsupported query: "{ num: { \'$gt\': 0 }, blob: { \'$gte\': <Buffer 68 65 6c 6c 6f 20 71 75 65 72 79 20 33> } }" Queries must include an equality condition for the index hash key.'}, 'rejects multiple conditions on separate keys');
+                t.rejects(IndexedNumberAndBinary.queryMany({type:{$gt:'foo'}}), {message:'Unsupported query: "{ type: { \'$gt\': \'foo\' } }" Queries must include an equality condition for the index hash key.'}, 'rejects $conditions on hash index with a useful error message');
+
+                t.rejects(Bar.queryMany({ type:'ambiguous.bar', barVal: { $between: {a:1} } }), {message:'Condition "$between" in query requires an array of 2 values.'}, 'rejects non-array value for between');
+                t.rejects(Bar.queryMany({ type:'ambiguous.bar', barVal: { $between: [7] } }), {message:'Condition "$between" in query requires an array of 2 values.'}, 'rejects incorrect number of values');
+                t.rejects(Bar.queryMany({ type:'ambiguous.bar', barVal: { $between: [7,9,10] } }), {message:'Condition "$between" in query requires an array of 2 values.'}, 'rejects incorrect number of values');
             });
             t.test('multiple possible indexes', async t => {
                 const nb = await IndexedNumberAndBinary.queryMany({ num:7 });
@@ -417,6 +428,20 @@ t.test('queries:', async t => {
                     t.equal(r.length, 8, 'should return 8 matches');
                     t.equal(r[0].constructor, Bar, 'should have correct constructor');
                     t.equal(r[0].barVal, 0, 'should return in ascending order');
+                    t.end();
+                });
+                t.test('$between', async t => {
+                    const r = await Bar.queryMany({ type:'ambiguous.bar', barVal: { $between: [7,9] } });
+                    t.equal(r.length, 3, 'should include the extremes');
+                    t.equal(r[0].constructor, Bar, 'should have correct constructor');
+                    t.equal(r[0].barVal, 7, 'should return in ascending order');
+                    t.end();
+                });
+                t.test('$begins', async t => {
+                    const r = await Bar.queryMany({ type:'ambiguous.bar', barValStr: { $begins: 'bar value 2' } });
+                    t.equal(r.length, Math.floor(N/3), `should return ${Math.floor(N/3)} matches`);
+                    t.equal(r[0].constructor, Bar, 'should have correct constructor');
+                    t.equal(r[0].barVal, 2, 'should return in ascending order');
                     t.end();
                 });
                 await t.test('$unsupported', async t => {

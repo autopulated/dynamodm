@@ -61,7 +61,7 @@
         "no-useless-rename": 1,
         "block-scoped-var": 1,
         "callback-return": 1,
-        "complexity": 1,
+        "complexity": ["error", 22],
         "constructor-super": 1,
         "default-case": 1,
         "handle-callback-err": 1,
