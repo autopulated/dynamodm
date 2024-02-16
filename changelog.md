@@ -1,3 +1,7 @@
+## 1.2.0
+ * Support $between and $begins query operators
+ * Improved error messages for unsupported queries
+
 ## 1.1.0
  * Support options.retry in Table()
  * Support table name as an argument to Table(), in addition to options.name
