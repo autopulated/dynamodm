@@ -110,6 +110,28 @@ limited.
 
 # API
 
+Index to main classes and methods:
+ * [DynamoDM(options)](#dynamodmoptions)
+    * [Table(tableName, options)](#tabletablename-options)
+        * [async .ready(options)](#async-tablereadyoptions)
+        * [.model(schema)](#tablemodelschema)
+    * [Schema(name, jsonSchema, options)](#schemaname-jsonschema-options)
+        * [built-in schema fragments](#built-in-schema-fragments)
+        * [indexing documents](#indexing-documents)
+        * [.methods](#schemamethods)
+        * [.statics](#schemastatics)
+        * [.virtuals](#schemavirtuals)
+        * [.converters](#schemaconverters-array)
+    * [Models](#model-types)
+        * [constructor](#modelconstructor-new-modelproperties)
+        * [async .save()](#async-modelsave)
+        * [async .remove()](#async-modelremove)
+        * [async .toObject(options)](#async-modeltoobjectvirtuals-converteroptions)
+        * [static async .getById()](#static-async-modelgetbyidid)
+        * [static async .queryOne(query, optoins)](#static-async-modelqueryonequery-options)
+        * [static async .queryMany(query, optoins)](#static-async-modelquerymanyquery-options)
+
+
 ## DynamoDM(options)
 The DynamoDM() function returns an instance of the API. The API instance holds
 default options (including logging), and provides access to create Tables and
