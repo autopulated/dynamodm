@@ -1,9 +1,10 @@
 // This example demonstrates how to take advantage of sorting within the sort
 // key of an index to efficiently find and return documents of a specific type
-// by equality of one property, sorted by a separate property. To do this both
-// properties are saved to the same string field in the database, with virtual
-// getters and setters defined to allow transparent access as separate
-// properties for users of the model:
+// by equality of one property, sorted by a separate property.
+//
+// To do this both properties are saved to the same string field in the
+// database, with virtual getters and setters defined to allow transparent
+// access as separate properties for users of the model:
 //
 //
 import DynamoDM from 'dynamodm';
@@ -20,7 +21,7 @@ const UserSchema = ddm.Schema('user', { });
 const CommentSchema = ddm.Schema('comment', {
     properties: {
         text: { type: 'string' },
-        user_and_time: { type: 'string', default: '/' }
+        user_and_time: { type: 'string' }
     }
 }, {
     index: {
@@ -34,7 +35,7 @@ const CommentSchema = ddm.Schema('comment', {
 const UploadSchema = ddm.Schema('upload', {
     properties: {
         url: { type: 'string' },
-        user_and_time: { type: 'string', default: '/' }
+        user_and_time: { type: 'string' }
     }
 }, {
     // ...
@@ -43,13 +44,21 @@ const UploadSchema = ddm.Schema('upload', {
 // define virtual getters and setters for easy access to the
 // separate parts of the compound fields
 UploadSchema.virtuals.user = CommentSchema.virtuals.user = {
-    get() { return this.user_and_time.split('/')[0]; },
-    set(v) { this.user_and_time = [v, this.user_and_time.split('/')[1]].join('/'); },
+    get() {
+        return this.user_and_time.split('/')[0];
+    },
+    set(v) {
+        this.user_and_time = v.toString() + '/' + (this.user_and_time || '/').split('/')[1];
+    },
 };
 
 UploadSchema.virtuals.time = CommentSchema.virtuals.time = {
-    get() { return Date.parse(this.user_and_time.split('/')[1]); },
-    set(v) { this.user_and_time = [this.user_and_time.split('/')[0], v.toISOString()].join('/'); },
+    get() {
+        return Date.parse(this.user_and_time.split('/')[1]);
+    },
+    set(v) {
+        this.user_and_time = (this.user_and_time || '/').split('/')[0] + '/' + v.toISOString();
+    },
 };
 
 // define static helper functions to make the details of
@@ -80,9 +89,8 @@ const firstCommentTime = Date.now();
 for (const user of [u1, u2]) {
     console.log(`creating records for ${user.id}...`);
     for (let i = 0; i < 10; i ++) {
-        const comment = new Comment({text: `Text of comment ${i} by user ${user.id}.`});
-        comment.user = user.id;
-        comment.time = new Date(firstCommentTime + i * 10000);
+        // The virtual fields can be assigned even during construction:
+        const comment = new Comment({text: `Text of comment ${i} by user ${user.id}.`, user: user.id, time: new Date(firstCommentTime + i * 10000)});
         await comment.save();
 
         const upload = new Upload({url: `https://example.com/example-url-${i}`});

@@ -337,6 +337,38 @@ t.test('virtuals:', async t => {
         t.equal(asObjWithoutVirtuals.bar, undefined, 'should not be included with {virtuals: false}');
     });
 
+    t.test('during construction', async t => {
+        const table = DynamoDM.Table({ name: 'test-table-2'});
+        const ASchema = DynamoDM.Schema('virtualsA', {
+            properties: {
+                foo: {type: 'number', default: 3},
+                compound_a_b: {type: 'string'},
+            }
+        });
+        ASchema.virtuals.bar = 'foo';
+        ASchema.virtuals.a = {
+            get() {
+                return (this.compound_a_b || ':').split(':')[0];
+            },
+            set(a) {
+                return this.compound_a_b = a.toString() + ':' + (this.compound_a_b || ':').split(':')[1];
+            }
+        };
+        ASchema.virtuals.b = {
+            get() {
+                return (this.compound_a_b || ':').split(':')[1];
+            },
+            set(b) {
+                return this.compound_a_b = (this.compound_a_b || ':').split(':')[0] + ':' + b.toString();
+            }
+        };
+
+        const AModel = table.model(ASchema);
+
+        t.match(new AModel({bar:3}), {foo:3}, 'alaises should work during construction');
+        t.match(new AModel({a:'AA', b:'BB'}), {compound_a_b: 'AA:BB'}, 'setters should work during construction');
+    });
+
     t.test('getters', async t => {
         const table = DynamoDM.Table({ name: 'test-table-2'});
         const ASchema = DynamoDM.Schema('testGetters', {

@@ -434,7 +434,10 @@ const aComment = await Comment.createAndSaveForUser(
 ## Schema.virtuals
 Virtual properties for a model may be defined by assigning to
 `schema.virtuals`. Virtual properties are useful for computing properties that
-are required by the application, but which are not saved in the database. 
+are required by the application but which are not saved in the database, or
+making the separate parts of a [compound
+property](https://github.com/autopulated/dynamodm/blob/main/examples/fields_sharing_index.mjs)
+easily accessible.
 
 Virtual properties can either be a string alias for another property, in which
 case a getter and setter for the property are defined automatically:
