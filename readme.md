@@ -539,6 +539,28 @@ To set fields in the database, set properties on a document and then call
 `doc.save()`. There are no limits on field names that can be used, apart from
 the normal javascript reserved names like `constructor`.
 
+### Creating models
+Models are created by calling [table.model()](#tablemodelschema) with a
+[schema](#schemaname-jsonschema-options).
+
+#### static Model fields
+Each model class that is created has static fields:
+ * `Model.type`: The name of the schema that was used to create this model
+   (which is the same as value of the built in type field for documents of this
+   model type).
+ * `Model.table`: the table in which this model was created.
+
+For example:
+```js
+const MyFooModel = table.model(ddm.Schema('foo'));
+// MyFooModel.table === table
+// MyFooModel.type === 'foo'
+
+// these are static, so only on the model class, not on its instances:
+const fooDoc = new MyFooModel();
+// fooDoc.table === undefined
+```
+
 ## Creating, updating, and removing Documents.
 ### Model.constructor (new Model(properties)) 
 Create a new document (a model instance) with the specified properties.

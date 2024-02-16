@@ -1336,7 +1336,7 @@ const createModel = function({table, schema, logger}) {
     class Model extends BaseModel {
         // public static fields
         static table = table;
-        static name  = schema.name;
+        static type = schema.name;
 
         // protected (accessed by base class) static fields:
         static [kModelTable]  = table;

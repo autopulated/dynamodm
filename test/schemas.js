@@ -18,6 +18,9 @@ t.test('basic schemas:', async t => {
         const EmptyModel = table.model(EmptySchema);
         const EmptyDoc = new EmptyModel();
 
+        t.equal(EmptyModel.type, 'emptySchema', "should expose the schema's name as .type");
+        t.equal(EmptyModel.table, table, 'should expose the table this model belongs to');
+
         t.hasOwnProps(EmptyDoc, ['id'], 'should have id');
         const asObj = await EmptyDoc.toObject();
         t.hasOwnProps(asObj, ['type', 'id'], 'should have id and type fields in toObject');
