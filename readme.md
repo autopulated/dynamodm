@@ -1052,6 +1052,14 @@ const uploadsForUser = await Upload.queryMany({
 })
 ```
 
+It's possible to extend this idea to take advantage of sorting within the sort
+key. For example, if we want to be able to efficiently find recent uploads and
+comments for a single user we can create a compound property `user_and_time`
+that is used as the sort key of the index, and take advantage of virtual
+properties to make its details transparent to model users. See
+[examples/fields_sharing_index.mjs](https://github.com/autopulated/dynamodm/blob/main/examples/fields_sharing_index.mjs)
+for an implentation.
+
 
 ## Bugs, Questions, Problems?
 Please open a [github issue](https://github.com/autopulated/dynamodm/issues) :)

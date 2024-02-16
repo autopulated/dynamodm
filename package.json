@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "tap run",
-    "lint": "./node_modules/.bin/eslint -c .eslintrc.json './{,!(node_modules)/**/}*.js'"
+    "lint": "./node_modules/.bin/eslint -c .eslintrc.json './{,!(node_modules)/**/}*.js' './{,!(node_modules)/**/}*.mjs'"
   },
   "tap": {
     "show-full-coverage": true,
@@ -39,12 +39,12 @@
   },
   "homepage": "https://github.com/autopulated/dynamodm",
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.501.0",
-    "@aws-sdk/lib-dynamodb": "^3.501.0",
+    "@aws-sdk/client-dynamodb": "^3.515.0",
+    "@aws-sdk/lib-dynamodb": "^3.515.0",
     "abstract-logging": "^2.0.1",
     "ajv": "^8.12.0",
     "bson-objectid": "^2.0.4",
-    "pino": "^8.17.2"
+    "pino": "^8.18.0"
   },
   "author": "James Crosby <3456211+autopulated@users.noreply.github.com>",
   "license": "Apache-2.0",
