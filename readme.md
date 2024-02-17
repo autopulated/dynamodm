@@ -972,10 +972,12 @@ const CommentSchema = ddm.Schema('c', {
 })
 
 const Comment = table.model(CommentSchema)
-const c1 = await (new Comment({ text: 'some text', commentedAt: new Date() })).save()
 
-// { text: 'some text', commentedAt: 2028-02-29T16:43:53.656Z, type:'comment', id: ... }
-console.log(await Foo.getById(f1.id)) 
+// ...
+
+console.log(await Comment.queryMany({ user: userId }))
+console.log(await Comment.queryMany({ user: userId, createdAt: { $gt: new Date('2024-01-01') } }))
+console.log(await Comment.queryMany({ section: 'thread-123' }))
 ```
 
 
