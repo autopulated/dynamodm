@@ -144,7 +144,8 @@ from default options, all state is stored within Table instances.
 import DynamoDM from 'dynamodm'
 
 const ddm = DynamoDM({
-    logger: { level:'eror' },
+    logger: { level:'error' },
+    // clientOptions.endpoint can be used to onnect to dynamodb-local for example:
     clientOptions: { endpoint:'http://localhost:8000' },
 })
 
@@ -190,6 +191,8 @@ Options:
    to be used to connect to DynamoDB, if omitted then one will be created.
  * `clientOptions`: Options for `DynamoDBClient` creation (ignored if
    `options.client` is passed).
+    * For available options see the [dynamodb client
+      documentation](https://www.npmjs.com/package/@aws-sdk/client-dynamodb)
  * `retry`: Options for request retries, requests are re-tried when dynamodb
    [batching limits are
    exceeded](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Programming.Errors.html#Programming.Errors.RetryAndBackoff).
@@ -221,7 +224,7 @@ table). This will delete all data in the table! Will fail if deletion
 protection has been enabled for the table.
 
 ### async Table.destroyConnection()
-Clears the state of this table, and if the underlying [DynamoDB
+Clears the state of this table connection, and if the underlying [DynamoDB
 client](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/Package/-aws-sdk-lib-dynamodb/)
 was created by this table (if it was not passed in as an option), calls and
 awaits
@@ -720,8 +723,8 @@ See [Indexing Documents](#indexing-documents) for declaring indexes.
        b: { $between: [123, 234] } // the .b field must be the GSI sort key
    }
    ```
- * `$begins` Find items where the specified field has a value greater than or
-   equal to the first value, and less than or equal to the second value
+ * `$begins` Find items where the specified field (which must be a string type)
+   begins with the specified prefix.
    ```js
    {
        a: "some value", // the .a field must be the GSI hash key
