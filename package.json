@@ -20,7 +20,7 @@
     "timeout": 60000
   },
   "files": [
-    "index.js"
+    "index.js", "lib/*"
   ],
   "keywords": [
     "dynamodb",
