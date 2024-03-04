@@ -4,6 +4,13 @@
 [![Coverage](https://coveralls.io/repos/github/autopulated/dynamodm/badge.svg?branch=main)](https://coveralls.io/github/autopulated/dynamodm?branch=main)
 [![NPM version](https://img.shields.io/npm/v/dynamodm.svg?style=flat)](https://www.npmjs.com/package/dynamodm)
 
+The simplest way to store data in AWS Dynamo DB, with or without JSON schemas.
+
+## Install
+```sh
+npm -i dynamodm
+```
+
 ## Quickstart
 ```js
 import DynamoDM from 'dynamodm'
