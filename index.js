@@ -5,7 +5,7 @@ const { Schema } = require('./lib/schema.js');
 
 const {
     DocId, Timestamp, Binary,
-    DocIdField, TypeField, CreatedAtField, UpdatedAtField
+    DocIdField, TypeField, VersionField, CreatedAtField, UpdatedAtField
 } = require('./lib/shared.js');
 
 const createLogger = (loggingOptions) => {
@@ -56,6 +56,7 @@ function DynamoDM(options) {
         // Special Schema fields
         DocIdField,
         TypeField,
+        VersionField,
         CreatedAtField,
         UpdatedAtField,
     };

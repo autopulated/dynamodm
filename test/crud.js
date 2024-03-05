@@ -17,7 +17,7 @@ t.test('crud:', async t => {
             cccc:         {type: 'string'},
             blob:         DynamoDM.Binary,
             createdAt:    DynamoDM.CreatedAtField,
-            updatedAt:    DynamoDM.UpdatedAtField,
+            updatedAt:    DynamoDM.UpdatedAtField
         },
         required: ['id', 'aaaa', 'bbbb'],
         additionalProperties: false

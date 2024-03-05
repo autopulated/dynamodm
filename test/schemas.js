@@ -13,7 +13,7 @@ t.test('basic schemas:', async t => {
     await t.test('empty schema', async t => {
         // models should have default .id, .type, .createdAt, .updatedAt properties
         const EmptySchema = DynamoDM.Schema('emptySchema');
-        t.hasStrict(EmptySchema, { name:'emptySchema', idFieldName:'id', typeFieldName:'type' });
+        t.hasStrict(EmptySchema, { name:'emptySchema', idFieldName:'id', typeFieldName:'type', versionFieldName:'v' });
 
         const EmptyModel = table.model(EmptySchema);
         const EmptyDoc = new EmptyModel();
@@ -23,8 +23,8 @@ t.test('basic schemas:', async t => {
 
         t.hasOwnProps(EmptyDoc, ['id'], 'should have id');
         const asObj = await EmptyDoc.toObject();
-        t.hasOwnProps(asObj, ['type', 'id'], 'should have id and type fields in toObject');
-        t.equal(Object.keys(asObj).length, 2, 'should have no other fields in toObject');
+        t.hasOwnProps(asObj, ['type', 'id', 'v'], 'should have id, type and v fields in toObject');
+        t.equal(Object.keys(asObj).length, 3, 'should have no other fields in toObject');
 
         t.end();
     });
@@ -49,7 +49,8 @@ t.test('basic schemas:', async t => {
                     hashKey: 'type',
                     sortKey: 'createdAt'
                 }
-            }
+            },
+            versioning: false
         });
 
         const DefaultValueTestSchema = DynamoDM.Schema('namespace.defaultvalue', {
@@ -561,17 +562,160 @@ t.test('custom field names', async t => {
             myId: DynamoDM.DocIdField,
             myType: DynamoDM.TypeField,
             myCreatedAt: DynamoDM.CreatedAtField,
-            myUpdatedAt: DynamoDM.UpdatedAtField
+            myUpdatedAt: DynamoDM.UpdatedAtField,
+            myVersion: DynamoDM.VersionField,
         }
     });
-    t.hasStrict(Schema, { name:'schema1', idFieldName:'myId', typeFieldName:'myType', createdAtFieldName:'myCreatedAt', updatedAtFieldName:'myUpdatedAt' });
+    t.hasStrict(Schema, { name:'schema1', idFieldName:'myId', typeFieldName:'myType', createdAtFieldName:'myCreatedAt', updatedAtFieldName:'myUpdatedAt', versionFieldName:'myVersion' });
 
     const Model = table.model(Schema);
 
     const doc = new Model();
     await doc.save();
 
-    t.hasOwnProps(doc, ['myId', 'myType', 'myCreatedAt', 'myUpdatedAt']);
+    t.hasOwnProps(doc, ['myId', 'myType', 'myCreatedAt', 'myUpdatedAt', 'myVersion']);
+    t.equal(doc.myVersion, 1);
+});
+
+t.test('versioning', async t => {
+    const logger = require('pino')({level:'warn'});
+    // stop child logger creation so we can intercept messages
+    logger.child = () => { return logger; };
+
+    // the versioned and unversioned models must be accessed via different
+    // table handles, as duplicate schema IDs in the same table are not allowed
+    const table = DynamoDM.Table({ name: 'test-table-versioning', logger });
+    const table2 = DynamoDM.Table({ name: 'test-table-versioning' });
+
+    const ASchema = DynamoDM.Schema('a', {}, { logger });
+    const ASchema_unversioned = DynamoDM.Schema('a', {}, { versioning:false, logger });
+
+    const AModel = table.model(ASchema);
+    const AModel_unversioned = table2.model(ASchema_unversioned);
+
+    t.before(async () => {
+        await table.ready();
+        await table2.ready();
+    });
+
+    t.after(async () => {
+        table2.destroyConnection();
+        await table.deleteTable();
+    });
+
+    t.test('saving new model', async t => {
+        const a = new AModel({foo:'bar'});
+        t.equal(a[ASchema.versionFieldName], 0, 'unsaved documents should have version 0');
+
+        let saveCompleted = a.save();
+        t.equal(a[ASchema.versionFieldName], 0, 'documents should keep version 0 until save completes');
+
+        await saveCompleted;
+        t.equal(a[ASchema.versionFieldName], 1, 'saved documents should have version 1');
+
+        a.foo = 'updated';
+
+        saveCompleted =  a.save();
+        t.equal(a[ASchema.versionFieldName], 1, 'version should stay at 1 until second save completes');
+
+        await saveCompleted;
+        t.equal(a[ASchema.versionFieldName], 2, 'after second save completes version should be 2');
+
+    });
+
+    t.test('loading and re-saving model', async t => {
+        const a = new AModel({foo:'bar'});
+        await a.save();
+
+        const b = await AModel.getById(a.id);
+        t.equal(b[ASchema.versionFieldName], 1, 'loaded version should be 1');
+
+        b.foo = 'loaded';
+        await b.save();
+        t.equal(b[ASchema.versionFieldName], 2, 're-saved version should be 2');
+
+        a.foo = 'clobber';
+        await t.rejects(a.save(), {message:`Version error: the model .id="${a.id}" was updated by another process between loading and saving.`}, 'saving model with outdated version should reject');
+
+        const c = await AModel.getById(a.id);
+        t.equal(c.foo, 'loaded', 'clobbering should have been prevented by the version error');
+    });
+
+    t.test('saving new doc twice causing version error', async t => {
+        const a = new AModel({foo:'1'});
+
+        // the document's version isn't updated until after the save completes,
+        // so both these saves will attempt to save the same version. Only one
+        // should win. We can't actually guarantee which, as that's up to dynamodb.
+        const save1Completed = a.save();
+        a.foo = '2';
+        const save2Completed = a.save();
+
+        await t.rejects(Promise.all([save1Completed, save2Completed]), {message:`Version error: the model .id="${a.id}" was updated by another process between loading and saving.`}, 'one racing save should fail');
+    });
+
+    t.test('saving existing doc twice causing version error', async t => {
+        const a = new AModel({foo:'1'});
+
+        await a.save();
+        a.foo = '2';
+
+        // the document's version isn't updated until after the save completes,
+        // so both these saves will attempt to save the same version. Only one
+        // should win. We can't actually guarantee which, as that's up to dynamodb.
+        const save1Completed = a.save();
+        a.foo = '3';
+        const save2Completed = a.save();
+
+        await t.rejects(Promise.all([save1Completed, save2Completed]), {message:`Version error: the model .id="${a.id}" was updated by another process between loading and saving.`}, 'one racing save should fail');
+    });
+
+    // this isn't actually a version error, but makes sense to test it here
+    t.test('creating documents with duplicate ids', async t => {
+        const a = new AModel({foo:'a'});
+        const b = new AModel({foo:'b', id: a.id});
+
+        t.equal(b.id, a.id, 'ids must be equal for this test to work');
+
+        await t.rejects(Promise.all([a.save(), b.save()]), {message:`An item already exists with id field .id="${a.id}"`}, 'creating documents sharing and id should fail');
+    });
+
+    t.test('saving different doc instances in parallel causing version error', async t => {
+        const a = new AModel({foo:''});
+
+        await a.save();
+        a.foo = 'a';
+
+        const b = await AModel.getById(a.id);
+        b.foo = 'b';
+
+        await t.rejects(Promise.all([a.save(), b.save()]), {message:`Version error: the model .id="${a.id}" was updated by another process between loading and saving.`}, 'saving in parallel should fail');
+    });
+
+    t.test('loading unversioned model', async t => {
+        const a = new AModel_unversioned({foo:'unversioned  save'});
+
+        await a.save();
+        const b = await AModel.getById(a.id);
+
+        // should log warning about adding a version field
+        const results = t.capture(logger, 'warn');
+        await b.save();
+
+        t.match(results(), [{args:['Adding missing version field %s to document %s.', 'v', a.id]}], 'should have called logger.warn with a suitable message');
+    });
+
+    t.test('naming a version field when Schema versioning option is false', async t => {
+        const logger = require('pino')({level:'warn'});
+        // stop child logger creation so we can intercept messages
+        logger.child = () => { return logger; };
+
+        const results = t.capture(logger, 'warn');
+        // this should warn
+        DynamoDM.Schema('a', { properties: { myV: DynamoDM.VersionField } }, { logger, versioning: false });
+
+        t.match(results(), [{args:['options.versioning is false, so the a Schema properties VersionField .myV is ignored']}], 'should have called logger.warn with a suitable message');
+    });
 });
 
 t.test('schema errors', async t => {
@@ -710,7 +854,6 @@ t.test('schema errors', async t => {
                 }
             });
         }, {message: 'The schema must define the type of property .ccc used by index "ccc".'} , 'should throw referencing an unknown field');
-
 
         t.throws(() => {
             DynamoDM.Schema('namespace.shouldthrow', {

@@ -46,6 +46,13 @@ t.test('table initialisation', async t => {
         });
     });
 
+    await t.test('with logger:true', async t => {
+        const table = require('../')({logger: true}).Table({ name: 'test-table-abstract-logger', clientOptions});
+        table.model(DynamoDM.Schema('emptySchema'));
+        await table.ready();
+        t.pass();
+    });
+
     await t.test('with existing logger', async t => {
         const pinoInstance = require('pino')({level:'error'});
         const results = t.capture(pinoInstance, 'child', pinoInstance.child);
