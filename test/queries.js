@@ -520,6 +520,11 @@ t.test('queries:', async t => {
             t.equal(aFoo.constructor, (new Foo()).constructor, 'should have the correct constructor');
             t.end();
         });
+        t.test('queryOne noneexistent', async t => {
+            const noFoo = await Foo.queryOne({ type: 'doesnotexist' });
+            t.equal(noFoo, null, 'should return null');
+            t.end();
+        });
         t.test('aborting queryOne', async t => {
             const ac0 = new AbortController();
             ac0.abort(new Error('my reason 0'));
@@ -548,6 +553,11 @@ t.test('queries:', async t => {
         t.test('queryOneId', async t => {
             const aFooId = await Foo.queryOneId({ type: 'namespace.foo' });
             t.ok(all_foos.filter(x => x.id === aFooId).length === 1, 'should return a foo ID');
+            t.end();
+        });
+        t.test('queryOneId nonexistent', async t => {
+            const noFooId = await Foo.queryOneId({ type: 'nonexistent' });
+            t.equal(noFooId, null, 'should return null');
             t.end();
         });
         await t.test('aborting queryOneId', async t => {
