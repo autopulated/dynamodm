@@ -269,6 +269,7 @@ Supported options:
    Documents](#indexing-documents) for details.
  * `options.generateId`: A function used to generate a new id for documents of
    this type. Defaults to ``` () => `${schema.name}.${new ObjectId()}` ```
+ * `options.versioning`: Pass `false` to disable [versioning](#document-versioning) for instances of this schema.
 
 After creating a schema, [`.methods`](#schemamethods),
 [`.statics`](#schemastatics), [`.virtuals`](#schemavirtuals), and
@@ -364,6 +365,11 @@ Special fields are defined by using fragments of schema by value.
  * `DynamoDM().TypeField`: used to indicate the type field, which stores the
    name of the model that a saved document was created with. The default type
    field name is `type`.
+ * `DynamoDM().VersionField`: The version field, which stores a number that is
+   incremented by 1 each time a model is saved, and is used to prevent data
+   from being silently overwritten by multiple clients accessing the same document.
+   The default version field name is `v`. See [document
+   versioning](#document-versioning) for details.
  * `DynamoDM().CreatedAtField`: used to indicate a timestamp field that is
    updated when a model is first created by dynamodm. This field is not used
    unless you include this schema fragment in a model's schema.
@@ -631,6 +637,18 @@ await aComment.save();
 
 const stingified = JSON.stringify(await aComment.toObject());
 ```
+
+### Document Versioning
+The [version field](#built-in-schema-fragments) of a model is incremented each
+time it is saved, starting at 0 for un-saved models. the `.save()` and
+`.remove()` methods check that the version in the database is the same as the
+current one using a [Condition
+Expression](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ConditionExpressions.html)
+before updating or deleting the data (they fail with an error if the version
+does not match).
+
+Versioning can be disabled for a model by setting the [Schema's
+`options.versioning` property](#schema-options) to `false`.
 
 ## Getting Documents by ID
 ### static async Model.getById(id)

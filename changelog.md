@@ -1,3 +1,8 @@
+## 1.3.0
+ * Adds support for model versioning, with associated schema fragment to name
+   the version field. To disable versioning pass options.versioning: false to
+   the Schema constructor.
+
 ## 1.2.0
  * Support $between and $begins query operators
  * Improved error messages for unsupported queries
