@@ -103,8 +103,8 @@ DynamoDB.
 It supports Single Table Design, where different model types are stored in a
 single DynamoDB table.
 
-The table hash key is used as a unique id for each document, ensuring documents
-are always evenly spread across all partitions.
+Each document has a unique ID which is used as the table hash key, ensuring
+documents are always evenly spread across all partitions.
 
 Not all DynamoDB functions are available, but DynamoDM is designed to be
 efficient, and make it easy to write apps that make the most of DynamoDB's
@@ -145,7 +145,7 @@ default options (including logging), and provides access to create Tables and
 Schemas, and to the built in schemas.
 
 Schemas from one DynamoDM instance can be used with tables from another. Aside
-from default options, all state is stored within Table instances.
+from default options no state is stored in the API instance.
 
 ```js
 import DynamoDM from 'dynamodm'
@@ -170,7 +170,8 @@ Options:
       object](https://getpino.io/#/docs/api?id=options-object), which will be
       used to create a new pino instance. For example `logger:{level:'trace'}`
       to enable trace-level logging.
- * ... all other options supported by [.Table](#table-tablename-options) or [.Schema](#schemaname-jsonschema-options).
+ * ... all other options supported by [.Table](#table-tablename-options) or
+   [.Schema](#schemaname-jsonschema-options), which will be used as defaults.
 
 ## Table(tableName, options)
 Create a handle to a DynamoDB table. The table stores connection options, model
@@ -207,13 +208,17 @@ Options:
 
 ### async Table.ready(options)
 Wait for the table to be ready. The current state of the table is queried and
-it is created if necessary. 
+it is created if necessary.
+
+If the table is missing required indexes then the creation of a missing index
+will be started (but not waited on). To create and wait for all missing
+indexes, use the `waitForIndexes` option.
 
 Options:
- * `waitForIndexes`: if true then any missing indexes that are required
-   will also be created. This may take a long time, especially if indexes are
-   being created that must be back-filled with existing data. Recommended for
-   convenience during development only!
+ * `waitForIndexes`: if true then all missing indexes required by schemas in
+   this table will also be created. This may take a long time, especially if
+   indexes are being created that must be back-filled with existing data.
+   Recommended for convenience during development only!
 
 ### Table.assumeReady()
 Check the basic compatibility of the models in this table, and assume it has
@@ -565,8 +570,8 @@ Models are created by calling [table.model()](#tablemodelschema) with a
 #### static Model fields
 Each model class that is created has static fields:
  * `Model.type`: The name of the schema that was used to create this model
-   (which is the same as value of the built in type field for documents of this
-   model type).
+   (which is the same as the value of the built in type field for documents of
+   this model type).
  * `Model.table`: the table in which this model was created.
 
 For example:
