@@ -698,11 +698,77 @@ t.test('versioning', async t => {
         await a.save();
         const b = await AModel.getById(a.id);
 
-        // should log warning about adding a version field
         const results = t.capture(logger, 'warn');
+
+        // should log warning about adding a version field
         await b.save();
 
         t.match(results(), [{args:['Adding missing version field %s to document %s.', 'v', a.id]}], 'should have called logger.warn with a suitable message');
+    });
+
+    t.test('creating, saving, then removing', async t => {
+        const a = new AModel({foo:'remove'});
+        const id = a.id;
+        await a.save();
+
+        await a.remove();
+
+        t.equal(await AModel.getById(id), null, 'document should have been removed');
+    });
+
+    t.test('loading then removing', async t => {
+        const a = new AModel({foo:'load and remove'});
+        const id = a.id;
+        await a.save();
+
+        const b = await AModel.getById(a.id);
+        t.equal(b[ASchema.versionFieldName], 1, 'loaded version should be 1');
+
+        await b.remove();
+        t.equal(await AModel.getById(id), null, 'document should have been removed');
+    });
+
+    t.test('loading, saving, then removing', async t => {
+        const a = new AModel({foo:'bar'});
+        const id = a.id;
+        await a.save();
+
+        const b = await AModel.getById(a.id);
+
+        b.foo = 'loaded';
+        await b.save();
+
+        await b.remove();
+        t.equal(await AModel.getById(id), null, 'document should have been removed');
+    });
+
+    t.test('removing an outdated doc causing version error', async t => {
+        const a = new AModel({foo:''});
+
+        await a.save();
+
+        const b = await AModel.getById(a.id);
+        const c = await AModel.getById(a.id);
+
+        b.foo = 'remove version error';
+
+        await b.save();
+
+        t.rejects(c.remove(), {message:`Version error: the model .id="${a.id}" was updated by another process between loading and removing.`}, 'removing an updated model should cause a version error');
+    });
+
+    t.test('removing unversioned model', async t => {
+        const a = new AModel_unversioned({foo:'unversioned  save'});
+
+        await a.save();
+        const b = await AModel.getById(a.id);
+
+        const results = t.capture(logger, 'warn');
+
+        // should log warning about a missing version field
+        await b.remove();
+
+        t.match(results(), [{args:['Removing versioned document .%s="%s" missing version field.', 'v', a.id]}], 'should have called logger.warn with a suitable message');
     });
 
     t.test('naming a version field when Schema versioning option is false', async t => {

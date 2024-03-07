@@ -1,3 +1,6 @@
+### 1.3.1
+ * Fixes removal of unversioned documents via a versioned model.
+
 ## 1.3.0
  * Adds support for model versioning, with associated schema fragment to name
    the version field. To disable versioning pass options.versioning: false to
