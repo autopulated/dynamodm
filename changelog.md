@@ -1,3 +1,6 @@
+### 1.3.2
+ * Fixes compatibility of Schemas with tables from different dynamodm module instances.
+
 ### 1.3.1
  * Fixes removal of unversioned documents via a versioned model.
 
