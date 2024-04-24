@@ -909,7 +909,7 @@ t.test('schema errors', async t => {
                     aaa: false
                 }
             });
-        }, {message: 'Invalid index specification ${indexSpec}: must be 1,true, or {hashKey:"", sortKey?:""}.'} , 'should throw with key:false');
+        }, {message: 'Invalid index specification false: must be 1, true, or {hashKey:"", sortKey?:""}.'}, 'should throw with key:false');
 
         t.throws(() => {
             DynamoDM.Schema('namespace.shouldthrow', {
