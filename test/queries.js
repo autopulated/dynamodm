@@ -681,3 +681,58 @@ t.test('queries:', async t => {
 
     t.end();
 });
+
+t.test('largeQueries', async t => {
+    const table = DynamoDM.Table({ name: 'test-table-largequeries'});
+    const XSchema = DynamoDM.Schema('x', {
+        properties: {
+            id: DynamoDM.DocIdField,
+            x:  {type: 'string'},
+            n:  {type: 'number'},
+            b:  DynamoDM.Binary,
+        }
+    }, {index: {
+        'sortedByN': {
+            hashKey: 'type',
+            sortKey: 'n'
+        },
+        'sortedByB': {
+            hashKey: 'x',
+            sortKey: 'b'
+        },
+    } });
+
+    const X = table.model(XSchema);
+    const all_xs = [];
+
+    const N = 507;
+    for (let i = 0; i < N; i++) {
+        const x = await new X({x:'constant', n: 1000 - i, b: Buffer.from(`b=${i}`), }).save();
+        all_xs.push(x);
+    }
+
+    t.after(async () => {
+        await table.deleteTable();
+        table.destroyConnection();
+    });
+
+    t.test('queryMany', async t => {
+        t.test('on type index', async t => {
+            const xs = await X.queryMany({ type: 'x' }, {limit: 1000});
+            t.equal(xs.length, all_xs.length, 'should return all N of this type');
+            t.equal(xs[0].constructor, (new X()).constructor, 'should have the correct constructor');
+        });
+
+        t.test('with limit', async t => {
+            const xs = await X.queryMany({ type: 'x' }, {limit: N-13});
+            t.equal(xs.length, N-13, 'should return the requested number of items');
+        });
+
+        t.test('sorted result', async t => {
+            const xs = await X.queryMany({ type: 'x', n: {$gte:0} }, {limit: 1000});
+            t.equal(xs.length, all_xs.length, 'should return all N of this type');
+            t.equal(xs.every((x, idx) => (idx === 0 || x.n > xs[idx-1].n)), true, 'should return correctly sorted result');
+        });
+    });
+
+});
