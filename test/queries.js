@@ -273,6 +273,23 @@ t.test('queries:', async t => {
         t.end();
     });
 
+    t.test('aborting getById', async t => {
+        const ac0 = new AbortController();
+        ac0.abort(new Error('my reason 0 '));
+        t.rejects(Foo.getById(all_foos[0].id, {abortSignal: ac0.signal}), {name:'AbortError', message:'Request aborted'}, 'getById should be abortable with an AbortController that is already aborted');
+
+        const ac1 = new AbortController();
+        t.rejects(Foo.getById(all_foos[0].id, {abortSignal: ac1.signal}), {name:'AbortError', message:'Request aborted'}, 'getById should be abortable with an AbortController signal immediately');
+        ac1.abort(new Error('my reason'));
+
+        const ac2 = new AbortController();
+        t.rejects(Foo.getById(all_foos[0].id, {abortSignal: ac2.signal}), {name:'AbortError', message:'Request aborted'}, 'getById should be abortable with an AbortController signal asynchronously');
+        setTimeout(() => {
+            ac2.abort(new Error('my reason 2'));
+        }, 1);
+        t.end();
+    });
+
     await t.test('rawQueryManyIds', async t => {
         t.test('on type index', async t => {
             const foo_ids = await Foo.rawQueryManyIds({
@@ -346,6 +363,60 @@ t.test('queries:', async t => {
             t.ok(N > 7, 'N needs to be > 7 for this test');
             t.equal(foo_ids.length, 7, 'should return all N of this type');
             t.match(foo_ids, all_foos.slice(0,7).map(f => f.id), 'should return the correct Ids');
+        });
+        await t.test('aborting with already-aborted controller', async t => {
+            const ac0 = new AbortController();
+            ac0.abort(new Error('my reason 0'));
+            const iter0 = Foo.rawQueryIteratorIds({
+                IndexName:'type',
+                KeyConditionExpression:'#typeFieldName = :type',
+                ExpressionAttributeValues: { ':type': 'namespace.foo' },
+                ExpressionAttributeNames: { '#typeFieldName': 'type' }
+            }, {abortSignal: ac0.signal});
+            await t.rejects(arrayFromAsync(iter0), {name:'AbortError', message:'Request aborted'}, 'rawQueryIteratorIds should be abortable with an AbortController that is already aborted');
+            t.end();
+        });
+        await t.test('aborting with already-aborted controller', async t => {
+            const ac1 = new AbortController();
+            const iter1 = Foo.rawQueryIteratorIds({
+                IndexName:'type',
+                KeyConditionExpression:'#typeFieldName = :type',
+                ExpressionAttributeValues: { ':type': 'namespace.foo' },
+                ExpressionAttributeNames: { '#typeFieldName': 'type' }
+            }, {abortSignal: ac1.signal});
+            const testComplete = t.rejects(arrayFromAsync(iter1), {name:'AbortError', message:'Request aborted'}, 'rawQueryIteratorIds should be abortable with an AbortController signal immediately');
+            ac1.abort(new Error('my reason'));
+            await testComplete;
+            t.end();
+        });
+        await t.test('aborting with already-aborted controller', async t => {
+            const ac2 = new AbortController();
+            const iter2 = Foo.rawQueryIteratorIds({
+                IndexName:'type',
+                KeyConditionExpression:'#typeFieldName = :type',
+                ExpressionAttributeValues: { ':type': 'namespace.foo' },
+                ExpressionAttributeNames: { '#typeFieldName': 'type' }
+            }, {abortSignal: ac2.signal});
+            const testComplete = t.rejects(arrayFromAsync(iter2), {name:'AbortError', message:'Request aborted'}, 'rawQueryIteratorIds should be abortable with an AbortController signal asynchronously');
+            setTimeout(() => {
+                ac2.abort(new Error('my reason 2'));
+            }, 1);
+            await testComplete;
+            t.end();
+        });
+        await t.test('aborting after the fact', async t => {
+            // check that aborting after completion doesn't do anything bad:
+            const ac3 = new AbortController();
+            const iter3 = Foo.rawQueryIteratorIds({
+                IndexName:'type',
+                KeyConditionExpression:'#typeFieldName = :type',
+                ExpressionAttributeValues: { ':type': 'namespace.foo' },
+                ExpressionAttributeNames: { '#typeFieldName': 'type' }
+            }, {abortSignal: ac3.signal});
+            const foo_ids = await arrayFromAsync(iter3);
+            ac3.abort(new Error('my reason 3'));
+            t.equal(foo_ids[0].startsWith('namespace.foo'), true, 'should have still returned foos');
+            t.end();
         });
         t.end();
     });
@@ -504,6 +575,16 @@ t.test('queries:', async t => {
             await t.test('with invalid startAfter', async t => {
                 await t.rejects(Foo.queryMany({type: 'namespace.foo'}, {limit:1, startAfter: {id:'123', type:'namespace.foo'} }), {message:'options.startAfter must be a Model_namespace.foo model instance. To specify ExclusiveStartKey directly use options.rawQueryOptions.ExclusiveStartKey instead.'}, 'should reject non-instance startAfter');
 
+                t.end();
+            });
+            await t.test('throws with invalid abortSignal', async t => {
+                // check that accidentally passing the abort controller, instead of its signal, throws an error:
+                await t.rejects(Foo.queryMany({ type: 'namespace.foo' }, { abortSignal: new AbortController() }), {
+                    message: "Invalid options: [ { message: 'Must be an AbortController Signal.', data: AbortController { signal: AbortSignal { aborted: false } }, instancePath: '/abortSignal', schemaPath: '#/properties/abortSignal/apiArgument"
+                }, 'passing a signal without an .aborted property should fail');
+                await t.rejects(Foo.queryMany({ type: 'namespace.foo' }, { abortSignal: { aborted: false } }), {
+                    message: "Invalid options: [ { message: 'Must be an AbortController Signal.', data: { aborted: false }, instancePath: '/abortSignal', schemaPath: '#/properties/abortSignal/apiArgument"
+                }, 'passing a signal without an .addEventListener function should fail');
                 t.end();
             });
             t.end();
