@@ -1,3 +1,8 @@
+## 1.4.0
+ * Support queryMany with limit > 100, by internally batching requests.
+ * Better errors for invalid abortSignal option values.
+ * Fixed error message for invalid index specification.
+
 ### 1.3.2
  * Fixes compatibility of Schemas with tables from different dynamodm module instances.
 
