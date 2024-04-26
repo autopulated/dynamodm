@@ -135,8 +135,8 @@ Index to main classes and methods:
         * [async .remove()](#async-modelremove)
         * [async .toObject(options)](#async-modeltoobjectvirtuals-converteroptions)
         * [static async .getById()](#static-async-modelgetbyidid)
-        * [static async .queryOne(query, optoins)](#static-async-modelqueryonequery-options)
-        * [static async .queryMany(query, optoins)](#static-async-modelquerymanyquery-options)
+        * [static async .queryOne(query, options)](#static-async-modelqueryonequery-options)
+        * [static async .queryMany(query, options)](#static-async-modelquerymanyquery-options)
 
 
 ## DynamoDM(options)
