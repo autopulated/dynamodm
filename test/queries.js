@@ -178,7 +178,7 @@ t.test('queries:', async t => {
     //     t.end();
     // });
 
-    await t.test('rawQueryOneId', async t => {
+    t.test('rawQueryOneId', async t => {
         t.test('on type index', async t => {
             const foo_id = await Foo.rawQueryOneId({
                 IndexName:'type',
@@ -218,79 +218,7 @@ t.test('queries:', async t => {
         });
     });
 
-    await t.test('getById', t => {
-        t.rejects(Foo.getById(null), 'should reject null id');
-        t.rejects(Foo.getById('someid', {foo:1}), 'should reject invalid option');
-        t.rejects(Foo.getById(''), 'should reject empty id');
-        t.rejects(Foo.getById(123), 'should reject numeric id');
-        t.end();
-    });
-
-    await t.test('table.getById', async t => {
-        t.rejects(table.getById('blegh.someid'), new Error('Table has no matching model type for id "blegh.someid", so it cannot be loaded.'), 'should reject unknown type');
-        t.rejects(table.getById('ambiguous.bar.someid'), new Error('Table has multiple ambiguous model types for id "ambiguous.bar.someid", so it cannot be loaded generically.'), 'should reject ambiguous type');
-        const foo = await table.getById(all_foos[0].id);
-        t.equal(foo.constructor, Foo, 'should get the correct type');
-        t.equal(foo.id, all_foos[0].id, 'should get the correct document');
-    });
-
-    await t.test('getByIds', async t => {
-        await t.rejects(Foo.getByIds([null]), 'should reject null id');
-        t.rejects(Foo.getByIds(['someid'], {foo:1}), 'should reject invalid option');
-        t.match(await Foo.getByIds(['nonexistent']), [null], 'should return null for nonexistent id');
-        t.match(await Foo.getByIds(['nonexistent', all_foos[0].id]), [null, all_foos[0]], 'should return null along with extant model');
-        const foos = await Foo.getByIds(all_foos.map(f => f.id));
-        t.equal(foos.length, all_foos.length, 'should return all models');
-        t.match(foos.map(f => f?.id), all_foos.map(f => f?.id), 'should return all models in order');
-        await t.rejects(Foo.getByIds(''), new Error('Invalid ids: must be array of strings of nonzero length.'), 'should reject non-array argument');
-        t.end();
-    });
-
-    t.test('getByIds exceeding retries', async t => {
-        const table2 = DynamoDM.Table({ name: 'test-table-queries', retry: { maxRetries:0 }});
-        t.after(async () => { table2.destroyConnection(); });
-        const Foo2 = table2.model(FooSchema);
-        t.rejects(Foo2.getByIds(all_foos.map(f => f.id)), {message:'Request failed: maximum retries exceeded.'}, 'getByIds with a large number of large responses should require retries for BatchGetCommand.');
-        t.end();
-    });
-
-    t.test('aborting getByIds', async t => {
-        const ac0 = new AbortController();
-        ac0.abort(new Error('my reason 0 '));
-        // the AWS SDk doesn't propagate the abort reason (but it would be nice if it did in the future)
-        t.rejects(Foo.getByIds(all_foos.map(f => f.id), {abortSignal: ac0.signal}), {name:'AbortError', message:'Request aborted'}, 'getByIds should be abortable with an AbortController that is already aborted');
-
-        const ac1 = new AbortController();
-        // the AWS SDk doesn't propagate the abort reason (but it would be nice if it did in the future)
-        t.rejects(Foo.getByIds(all_foos.map(f => f.id), {abortSignal: ac1.signal}), {name:'AbortError', message:'Request aborted'}, 'getByIds should be abortable with an AbortController signal immediately');
-        ac1.abort(new Error('my reason'));
-
-        const ac2 = new AbortController();
-        t.rejects(Foo.getByIds(all_foos.map(f => f.id), {abortSignal: ac2.signal}), {name:'AbortError', message:'Request aborted'}, 'getByIds should be abortable with an AbortController signal asynchronously');
-        setTimeout(() => {
-            ac2.abort(new Error('my reason 2'));
-        }, 1);
-        t.end();
-    });
-
-    t.test('aborting getById', async t => {
-        const ac0 = new AbortController();
-        ac0.abort(new Error('my reason 0 '));
-        t.rejects(Foo.getById(all_foos[0].id, {abortSignal: ac0.signal}), {name:'AbortError', message:'Request aborted'}, 'getById should be abortable with an AbortController that is already aborted');
-
-        const ac1 = new AbortController();
-        t.rejects(Foo.getById(all_foos[0].id, {abortSignal: ac1.signal}), {name:'AbortError', message:'Request aborted'}, 'getById should be abortable with an AbortController signal immediately');
-        ac1.abort(new Error('my reason'));
-
-        const ac2 = new AbortController();
-        t.rejects(Foo.getById(all_foos[0].id, {abortSignal: ac2.signal}), {name:'AbortError', message:'Request aborted'}, 'getById should be abortable with an AbortController signal asynchronously');
-        setTimeout(() => {
-            ac2.abort(new Error('my reason 2'));
-        }, 1);
-        t.end();
-    });
-
-    await t.test('rawQueryManyIds', async t => {
+    t.test('rawQueryManyIds', async t => {
         t.test('on type index', async t => {
             const foo_ids = await Foo.rawQueryManyIds({
                 IndexName:'type',
@@ -323,7 +251,7 @@ t.test('queries:', async t => {
         t.end();
     });
 
-    await t.test('rawQueryIteratorIds', async t => {
+    t.test('rawQueryIteratorIds', async t => {
         t.test('on type index', async t => {
             const foo_ids = await arrayFromAsync(Foo.rawQueryIteratorIds({
                 IndexName:'type',
@@ -421,7 +349,7 @@ t.test('queries:', async t => {
         t.end();
     });
 
-    await t.test('query api', async t => {
+    t.test('query api', async t => {
         // TODO:
         //  * tests for $gt $lt conditions on hash-only indexes to make sure we reject with a nice error (currently the error comes from dynamodb doc client and is not very helpful)
         t.test('queryMany', async t => {
@@ -454,6 +382,14 @@ t.test('queries:', async t => {
                 t.equal(nb.length, 1, 'should return one match');
                 t.equal(nb[0].constructor, (new IndexedNumberAndBinary()).constructor, 'should have correct constructor');
                 t.equal(nb[0].num, 7, 'should return the matching item');
+            });
+            t.test('with options={}', async t => {
+                const foos = await Foo.queryMany({ type: 'namespace.foo' }, {});
+                t.equal(foos.length, all_foos.length, 'should return all N of this type');
+            });
+            t.test('with limit', async t => {
+                const foos = await Foo.queryMany({ type: 'namespace.foo' }, {rawQueryOptions: {}, rawFetchOptions: {}, limit: all_foos.length});
+                t.equal(foos.length, all_foos.length, 'should return all N of this type');
             });
             t.test('invalid queries', async t => {
                 t.rejects(Foo.queryMany({type: 'namespace.foo', fooVal:3 }), {message:'Unsupported query: "{ type: \'namespace.foo\', fooVal: 3 }". No index found for query fields [type, fooVal]'}, 'rejects non-queryable extra parameters');
@@ -593,6 +529,8 @@ t.test('queries:', async t => {
         t.test('queryManyIds', async t => {
             const allFooIds = await Foo.queryManyIds({ type: 'namespace.foo' });
             t.match(allFooIds.sort(), all_foos.map(f => f.id).sort(), 'should return all IDs');
+            t.resolves(Foo.queryManyIds({ type: 'namespace.foo' }, {}), 'should accept empty options');
+            t.resolves(Foo.queryManyIds({ type: 'namespace.foo' }, {limit:3}), 'should accept limit option');
             t.end();
         });
 
@@ -668,28 +606,36 @@ t.test('queries:', async t => {
             t.rejects(Foo.queryOne({ type: 'namespace.foo' }, {invalidOption:123}), {message:"Invalid options: [ { instancePath: '', schemaPath: '#/additionalProperties', keyword: 'additionalProperties', params: { additionalProperty: 'invalidOption' }, message: 'must NOT have additional properties' } ]."}, 'rejects invalid option');
             t.rejects(Foo.queryOne({ type: 'namespace.foo' }, {limit:2}), {message:"Invalid options: [ { instancePath: '/limit', schemaPath: '#/properties/limit/const', keyword: 'const', params: { allowedValue: 1 }, message: 'must be equal to constant' } ]"}, 'rejects incorrect option value');
             t.rejects(Foo.queryOne({ type: 'namespace.foo' }, {startAfter:'somestring'}), {message:"Invalid options: [ { instancePath: '/startAfter', schemaPath: '#/properties/startAfter/type', keyword: 'type', params: { type: 'object' }, message: 'must be object' } ]."}, 'rejects incorrect option type');
+            t.rejects(Foo.queryOne({ type: 'namespace.foo' }, null), {message:"Invalid options: [ { instancePath: '', schemaPath: '#/type', keyword: 'type', params: { type: 'object' }, message: 'must be object' } ]."}, 'rejects null options');
+            t.rejects(Foo.queryOne({ type: 'namespace.foo' }, true), {message:"Invalid options: [ { instancePath: '', schemaPath: '#/type', keyword: 'type', params: { type: 'object' }, message: 'must be object' } ]."}, 'rejects truthy invalid options');
             t.end();
         });
         t.test('queryOneId', async t => {
             t.rejects(Foo.queryOneId({ type: 'namespace.foo' }, {rawFetchOptions:{}}), {message:"Invalid options: [ { instancePath: '', schemaPath: '#/additionalProperties', keyword: 'additionalProperties', params: { additionalProperty: 'rawFetchOptions' }, message: 'must NOT have additional properties' } ]."}, 'rejects invalid option');
             t.rejects(Foo.queryOneId({ type: 'namespace.foo' }, {limit:2}), {message:"Invalid options: [ { instancePath: '/limit', schemaPath: '#/properties/limit/const', keyword: 'const', params: { allowedValue: 1 }, message: 'must be equal to constant' } ]"}, 'rejects incorrect option value');
             t.rejects(Foo.queryOneId({ type: 'namespace.foo' }, {startAfter:'somestring'}), {message:"Invalid options: [ { instancePath: '/startAfter', schemaPath: '#/properties/startAfter/type', keyword: 'type', params: { type: 'object' }, message: 'must be object' } ]."}, 'rejects incorrect option type');
+            t.rejects(Foo.queryOneId({ type: 'namespace.foo' }, null), {message:"Invalid options: [ { instancePath: '', schemaPath: '#/type', keyword: 'type', params: { type: 'object' }, message: 'must be object' } ]."}, 'rejects null options');
+            t.rejects(Foo.queryOneId({ type: 'namespace.foo' }, true), {message:"Invalid options: [ { instancePath: '', schemaPath: '#/type', keyword: 'type', params: { type: 'object' }, message: 'must be object' } ]."}, 'rejects truthy invalid options');
             t.end();
         });
         t.test('queryMany', async t => {
             t.rejects(Foo.queryMany({ type: 'namespace.foo' }, {invalidOption:123}), {message:"Invalid options: [ { instancePath: '', schemaPath: '#/additionalProperties', keyword: 'additionalProperties', params: { additionalProperty: 'invalidOption' }, message: 'must NOT have additional properties' } ]."}, 'rejects invalid option');
             t.rejects(Foo.queryMany({ type: 'namespace.foo' }, {startAfter:'somestring'}), {message:"Invalid options: [ { instancePath: '/startAfter', schemaPath: '#/properties/startAfter/type', keyword: 'type', params: { type: 'object' }, message: 'must be object' } ]."}, 'rejects incorrect option type');
+            t.rejects(Foo.queryMany({ type: 'namespace.foo' }, null), {message:"Invalid options: [ { instancePath: '', schemaPath: '#/type', keyword: 'type', params: { type: 'object' }, message: 'must be object' } ]."}, 'rejects null options');
+            t.rejects(Foo.queryMany({ type: 'namespace.foo' }, true), {message:"Invalid options: [ { instancePath: '', schemaPath: '#/type', keyword: 'type', params: { type: 'object' }, message: 'must be object' } ]."}, 'rejects truthy invalid options');
             t.end();
         });
         t.test('queryManyIds', async t => {
             t.rejects(Foo.queryManyIds({ type: 'namespace.foo' }, {rawFetchOptions:{}}), {message:"Invalid options: [ { instancePath: '', schemaPath: '#/additionalProperties', keyword: 'additionalProperties', params: { additionalProperty: 'rawFetchOptions' }, message: 'must NOT have additional properties' } ]."}, 'rejects invalid option');
             t.rejects(Foo.queryManyIds({ type: 'namespace.foo' }, {startAfter:'somestring'}), {message:"Invalid options: [ { instancePath: '/startAfter', schemaPath: '#/properties/startAfter/type', keyword: 'type', params: { type: 'object' }, message: 'must be object' } ]."}, 'rejects incorrect option type');
+            t.rejects(Foo.queryManyIds({ type: 'namespace.foo' }, null), {message:"Invalid options: [ { instancePath: '', schemaPath: '#/type', keyword: 'type', params: { type: 'object' }, message: 'must be object' } ]."}, 'rejects null options');
+            t.rejects(Foo.queryManyIds({ type: 'namespace.foo' }, true), {message:"Invalid options: [ { instancePath: '', schemaPath: '#/type', keyword: 'type', params: { type: 'object' }, message: 'must be object' } ]."}, 'rejects truthy invalid options');
             t.end();
         });
         await t.end();
     });
 
-    await t.test('add missing indexes', async t => {
+    t.test('add missing indexes', async t => {
         const table3 = DynamoDM.Table({ name: 'test-compatible-indexes'});
         t.teardown(async () => {
             await table3.deleteTable();

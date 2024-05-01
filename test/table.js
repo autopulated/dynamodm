@@ -101,6 +101,47 @@ t.test('waiting for table creation', async t => {
     t.equal(commandSendResults().length, 3, 'Should wait for success.');
 });
 
+t.test('waiting for table UPDATING', async t => {
+    const table = DynamoDM.Table({ name: 'test-table-slow-creation', clientOptions});
+    table.model(DynamoDM.Schema('emptySchema'));
+
+    const originalSend = table.client.send;
+
+    // return a dummy UPDATING response, which should be considered a
+    // satisfactory response that the table exists (and must have been
+    // previously created / updated by a separate process)
+    const commandSendResults = t.capture(table.docClient, 'send', async function(command){
+        if (command instanceof DescribeTableCommand) {
+            // return a dummy 'UPDATING' response to DescribeTableCommand
+            return {
+                Table: {
+                    TableStatus: 'UPDATING',
+                    KeySchema: [{
+                        AttributeName: 'id',
+                        KeyType: 'HASH'
+                    }],
+                    GlobalSecondaryIndexes: [
+                        {
+                            IndexName: 'type',
+                            KeySchema: [
+                              { AttributeName: 'type', KeyType: 'HASH' },
+                              { AttributeName: 'id',   KeyType: 'RANGE'}
+                            ],
+                            Projection: { ProjectionType: 'KEYS_ONLY' },
+                        }
+                    ]
+                },
+            };
+        }
+        // eslint-disable-next-line
+        return originalSend.apply(this, arguments);
+    });
+
+    await table.ready();
+
+    t.equal(commandSendResults().length, 2, 'UPDATING should be considered created, requiring only two responses.');
+});
+
 t.test('table consistency:', async t => {
     t.test('throws on inconsistent id field names', async t => {
         const table = DynamoDM.Table({ name: 'test-table-errors'});
