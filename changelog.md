@@ -1,3 +1,6 @@
+### 1.4.1
+ * documentation updates and additional test coverage
+
 ## 1.4.0
  * Support queryMany with limit > 100, by internally batching requests.
  * Better errors for invalid abortSignal option values.
