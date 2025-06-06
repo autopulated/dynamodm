@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "tap run",
-    "lint": "./node_modules/.bin/eslint -c .eslintrc.json './{,!(node_modules)/**/}*.js' './{,!(node_modules)/**/}*.mjs'"
+    "lint": "./node_modules/.bin/eslint -c eslint.config.js './{,!(node_modules)/**/}*.js' './{,!(node_modules)/**/}*.mjs'"
   },
   "tap": {
     "show-full-coverage": true,
@@ -50,7 +50,8 @@
   "author": "James Crosby <3456211+autopulated@users.noreply.github.com>",
   "license": "Apache-2.0",
   "devDependencies": {
-    "eslint": "^8.57.1",
+    "eslint": "^9.28.0",
+    "globals": "^16.2.0",
     "tap": "^21.1.0"
   }
 }
