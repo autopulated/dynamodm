@@ -40,17 +40,17 @@
   },
   "homepage": "https://github.com/autopulated/dynamodm",
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.515.0",
-    "@aws-sdk/lib-dynamodb": "^3.515.0",
+    "@aws-sdk/client-dynamodb": "^3.825.0",
+    "@aws-sdk/lib-dynamodb": "^3.825.0",
     "abstract-logging": "^2.0.1",
-    "ajv": "^8.12.0",
+    "ajv": "^8.17.1",
     "bson-objectid": "^2.0.4",
-    "pino": "^8.18.0"
+    "pino": "^8.21.0"
   },
   "author": "James Crosby <3456211+autopulated@users.noreply.github.com>",
   "license": "Apache-2.0",
   "devDependencies": {
-    "eslint": "^8.56.0",
-    "tap": "^18.7.0"
+    "eslint": "^8.57.1",
+    "tap": "^21.1.0"
   }
 }

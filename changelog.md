@@ -1,3 +1,6 @@
+### 1.4.2
+ * update dependencies
+
 ### 1.4.1
  * documentation updates and additional test coverage
 
