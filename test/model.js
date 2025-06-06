@@ -1,4 +1,4 @@
-const t = require('tap');
+const tap = require('tap');
 
 const clientOptions = {
     endpoint: 'http://localhost:8000'
@@ -7,7 +7,7 @@ const clientOptions = {
 const DynamoDMConstructor = require('../');
 const DynamoDM = DynamoDMConstructor({clientOptions, logger:{level:'error'}});
 
-t.test('model:', async t => {
+tap.test('model:', async t => {
     const table = DynamoDM.Table({ name: 'test-table-models'});
     const FooSchema = DynamoDM.Schema('namespace.foo', {
         properties: {
@@ -179,3 +179,5 @@ t.test('model:', async t => {
         t.end();
     });
 });
+
+tap.end();

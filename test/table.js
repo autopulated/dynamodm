@@ -1,4 +1,4 @@
-const t = require('tap');
+const tap = require('tap');
 const { DescribeTableCommand } = require('@aws-sdk/client-dynamodb');
 
 const clientOptions = {
@@ -8,10 +8,9 @@ const clientOptions = {
 const DynamoDMConstructor = require('../');
 const DynamoDM = DynamoDMConstructor({clientOptions, logger:{level:'error'}});
 
-t.pass('import ok');
+tap.pass('import ok');
 
-t.test('incorrect usage throws', async t => {
-    const DynamoDMConstructor = require('../');
+tap.test('incorrect usage throws', async t => {
     t.throws(() => {
         DynamoDMConstructor.Table({name: 'test-table-1'});
     }, {message: "DynamoDM must be called as a function to get an instance of the API, e.g. const DynamoDM = require('dynamodm')(options);"}, 'DynamoDM.Table() throws');
@@ -21,7 +20,7 @@ t.test('incorrect usage throws', async t => {
     }, {message: "DynamoDM must be called as a function to get an instance of the API, e.g. const DynamoDM = require('dynamodm')(options);"}, 'DynamoDM.Schema() throws');
 });
 
-t.test('table initialisation', async t => {
+tap.test('table initialisation', async t => {
     await t.test('create without schemas', async t => {
         const table = DynamoDM.Table({ name: 'test-table-1', clientOptions});
         await t.rejects(table.ready());
@@ -73,7 +72,7 @@ t.test('table initialisation', async t => {
     });
 });
 
-t.test('waiting for table creation', async t => {
+tap.test('waiting for table creation', async t => {
     const table = DynamoDM.Table({ name: 'test-table-slow-creation', clientOptions});
     table.model(DynamoDM.Schema('emptySchema'));
 
@@ -101,7 +100,7 @@ t.test('waiting for table creation', async t => {
     t.equal(commandSendResults().length, 3, 'Should wait for success.');
 });
 
-t.test('waiting for table UPDATING', async t => {
+tap.test('waiting for table UPDATING', async t => {
     const table = DynamoDM.Table({ name: 'test-table-slow-creation', clientOptions});
     table.model(DynamoDM.Schema('emptySchema'));
 
@@ -142,7 +141,7 @@ t.test('waiting for table UPDATING', async t => {
     t.equal(commandSendResults().length, 2, 'UPDATING should be considered created, requiring only two responses.');
 });
 
-t.test('table consistency:', async t => {
+tap.test('table consistency:', async t => {
     t.test('throws on inconsistent id field names', async t => {
         const table = DynamoDM.Table({ name: 'test-table-errors'});
         table.model(DynamoDM.Schema('schema1'));
@@ -282,7 +281,7 @@ t.test('table consistency:', async t => {
     t.end();
 });
 
-t.test('index creation fails', async t => {
+tap.test('index creation fails', async t => {
     const Schema1_noIndexes = DynamoDM.Schema('1', {
         properties: {
             aString: {type:'string'},
@@ -342,7 +341,7 @@ t.test('index creation fails', async t => {
     t.end();
 });
 
-t.test('wait for index creation', async t => {
+tap.test('wait for index creation', async t => {
     const Schema1_noIndexes = DynamoDM.Schema('1', {
         properties: {
             aString: {type:'string'},
@@ -394,7 +393,7 @@ t.test('wait for index creation', async t => {
     t.end();
 });
 
-t.test("don't wait for index creation", async t => {
+tap.test("don't wait for index creation", async t => {
     const Schema1_noIndexes = DynamoDM.Schema('1', {
         properties: {
             aString: {type:'string'},
@@ -445,4 +444,4 @@ t.test("don't wait for index creation", async t => {
     t.end();
 });
 
-t.end();
+tap.end();

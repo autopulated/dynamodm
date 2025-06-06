@@ -1,4 +1,4 @@
-const t = require('tap');
+const tap = require('tap');
 
 const clientOptions = {
     endpoint: 'http://localhost:8000'
@@ -7,7 +7,7 @@ const clientOptions = {
 const DynamoDMConstructor = require('../');
 const DynamoDM = DynamoDMConstructor({clientOptions, logger:{level:'error'}});
 
-t.test('basic schemas:', async t => {
+tap.test('basic schemas:', async t => {
     const table = DynamoDM.Table({ name: 'test-table-schemas'});
 
     await t.test('empty schema', async t => {
@@ -303,7 +303,7 @@ t.test('basic schemas:', async t => {
     });
 });
 
-t.test('virtuals:', async t => {
+tap.test('virtuals:', async t => {
     t.test('string aliases', async t => {
         const table = DynamoDM.Table({ name: 'test-table-2'});
         const ASchema = DynamoDM.Schema('virtualsA', {
@@ -467,7 +467,7 @@ t.test('virtuals:', async t => {
     });
 });
 
-t.test('converters:', async t => {
+tap.test('converters:', async t => {
     t.test('sync field creation and deletion', async t => {
         const table = DynamoDM.Table({ name: 'test-table-2'});
         const ASchema = DynamoDM.Schema('testConverters', {
@@ -553,7 +553,7 @@ t.test('converters:', async t => {
     });
 });
 
-t.test('custom field names', async t => {
+tap.test('custom field names', async t => {
     const table = DynamoDM.Table({ name: 'test-table-custom-names'});
 
     // models should have default .id, .type, .createdAt, .updatedAt properties
@@ -577,7 +577,7 @@ t.test('custom field names', async t => {
     t.equal(doc.myVersion, 1);
 });
 
-t.test('versioning', async t => {
+tap.test('versioning', async t => {
     const logger = require('pino')({level:'warn'});
     // stop child logger creation so we can intercept messages
     logger.child = () => { return logger; };
@@ -784,7 +784,7 @@ t.test('versioning', async t => {
     });
 });
 
-t.test('schema errors', async t => {
+tap.test('schema errors', async t => {
     const table = DynamoDM.Table({ name: 'test-table-schemas'});
 
     const AStringSchema            = DynamoDM.Schema('namespace.thing', { properties: { a: {type: 'string'}, } });
@@ -938,4 +938,4 @@ t.test('schema errors', async t => {
     });
 });
 
-t.end();
+tap.end();

@@ -1,4 +1,4 @@
-const t = require('tap');
+const tap = require('tap');
 
 const clientOptions = {
     endpoint: 'http://localhost:8000'
@@ -15,7 +15,7 @@ async function arrayFromAsync(iter) {
     return r;
 }
 
-t.test('queries:', async t => {
+tap.test('queries:', async t => {
     const table = DynamoDM.Table({ name: 'test-table-queries'});
     const FooSchema = DynamoDM.Schema('namespace.foo', {
         properties: {
@@ -709,7 +709,7 @@ t.test('queries:', async t => {
     t.end();
 });
 
-t.test('largeQueries', async t => {
+tap.test('largeQueries', async t => {
     const table = DynamoDM.Table({ name: 'test-table-largequeries'});
     const XSchema = DynamoDM.Schema('x', {
         properties: {
@@ -763,3 +763,5 @@ t.test('largeQueries', async t => {
     });
 
 });
+
+tap.end();

@@ -46,15 +46,15 @@ js.configs.recommended,
         "block-scoped-var": 2,
         "callback-return": 2,
         "default-case": 2,
-        "semi": 2
+        "semi": 2,
+        "quotes": [2, "single", { "avoidEscape": true }]
     }
 },
-// {
-//     files: ["lib/*"],
-//     rules: {
-//         "no-shadow":2,
-//         "quotes": [2, "single", { "avoidEscape": true }]
-//     }
-// },
+{
+    files: ["lib/*"],
+    rules: {
+        "no-shadow":2,
+    }
+},
 ];
 

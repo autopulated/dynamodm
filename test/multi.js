@@ -1,4 +1,4 @@
-const t = require('tap');
+const tap = require('tap');
 
 const clientOptions = {
     endpoint: 'http://localhost:8000'
@@ -14,13 +14,13 @@ const DynamoDMConstructor2 = require('../');
 const DynamoDM1 = DynamoDMConstructor1({clientOptions, logger:{level:'error'}});
 const DynamoDM2 = DynamoDMConstructor2({clientOptions, logger:{level:'error'}});
 
-t.test('unique identity', async t => {
+tap.test('unique identity', async t => {
     t.ok(DynamoDMConstructor1 !== DynamoDMConstructor2, "check that we've created separate module instances for testing");
     t.notOk(DynamoDM1.Schema('test') instanceof DynamoDM2.Schema('test').constructor, 'check that Schema types are unique');
 });
 
 
-t.test('crud with schema from separate module', async t => {
+tap.test('crud with schema from separate module', async t => {
     const table = DynamoDM1.Table({ name: 'test-table-multi-crud'});
     const ThingSchema = DynamoDM2.Schema('namespace.thing', {
         properties: {
@@ -76,4 +76,4 @@ t.test('crud with schema from separate module', async t => {
     t.end();
 });
 
-t.end();
+tap.end();
