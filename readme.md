@@ -777,7 +777,7 @@ const result = await Comment.queryOne({
 **Querying for a two properties** named `field1`, and `field2`, equal to
 values `"v1"` and `2`. This requires an index that either:
  * has `field1` as its hash key, and `field2` as its sort key, or:
- * has `field2` as its hash key, and `field2` as its sort key.
+ * has `field2` as its hash key, and `field1` as its sort key.
 
 Note that this query may return multiple results, since neither hash key nor
 sort key values in global secondary indexes are necessarily unique.
@@ -1016,7 +1016,8 @@ console.log(await Comment.queryMany({ section: 'thread-123' }))
 
 ### Caveats for Indexes
 A dynamoDB table supports up to 20 global secondary indexes in the default
-quota. DynamoDM creates one built-in index on the id field.
+quota. DynamoDM creates one built-in index on the type field, if a table
+contains multiple types of models.
 
 All documents in the same table share the same indexes, and all documents that
 include a field that is used as the hash key of an index will be included in

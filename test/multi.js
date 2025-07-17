@@ -36,6 +36,7 @@ tap.test('crud with schema from separate module', async t => {
         additionalProperties: false
     });
     const Thing = table.model(ThingSchema);
+    table.model(DynamoDM2.Schema('other'));
 
     await table.ready();
 
