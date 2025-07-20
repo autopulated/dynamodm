@@ -1,3 +1,6 @@
+### 1.5.1
+ * Fix temporary files included in published package.
+
 ## 1.5.0
  * Support for projected attributes in indexes, and constructing partial models
    from only projected attributes with the 'onlyProjected' option to queries.
