@@ -1,4 +1,13 @@
-### 1.4.2
+## 1.5.0
+ * Support for projected attributes in indexes, and constructing partial models
+   from only projected attributes with the 'onlyProjected' option to queries.
+ * Models are constructed directly from indexes that project all attributes,
+   without an additional request to the table.
+ * The type index is no longer automatically created if there is only a single
+   model type.
+ * The type field is no longer automatically required by every schema.
+
+### 1.4.2
  * update dependencies
 
 ### 1.4.1
