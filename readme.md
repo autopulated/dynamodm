@@ -819,6 +819,22 @@ const results = await MyModel.queryMany({
 })
 ```
 
+#### Projected Attributes
+If an index does not [project
+all](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GSI.html#GSI.Projections)
+attributes, then the documents returned by
+[queryOne](#static-async-modelqueryonequery-options) and
+[queryMany](#static-async-modelquerymanyquery-options) are loaded using
+[BatchGetItem](https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html)
+from the main table, unless the `onlyProjected: true` option is specified.  If
+`onlyProjected` is set, then instead models will be constructed only from the
+attributes present in the index, and will lack fields that are not projected.
+
+These models must still pass schema validation during construction otherwise
+onlyProjected queries will reject with an error.
+
+Models constructed from only projected attributes are considered 'partial', and
+cannot be re-saved.
 
 #### Order of query results
 If the query includes a sort key, then results will be ordered by the sort key.
@@ -830,6 +846,9 @@ Query for a single document. See [query format](#query-format) for the
 supported query format.
 
 Supported options:
+ * onlyProjected: If true, the returned document will be constructed only from
+   the index's projected attributes. If the model's schema requires attributes
+   that are not projected in the index then the query will reject.
  * abortSignal: The `.signal` of an
    [`AbortController`](https://nodejs.org/api/globals.html#class-abortcontroller),
    which may be used to interrupt the asynchronous request.
@@ -861,6 +880,9 @@ Query for an array of documents. See [query format](#query-format) for the
 supported query format. 
 
 Supported options:
+ * onlyProjected: If true, the returned documents will be constructed only from
+   the index's projected attributes. If the model's schema requires attributes
+   that are not projected in the index then the query will reject.
  * limit: The maxuimum number of models to return. May be combined with
    `startAfter` to paginate restults.
  * abortSignal: The `.signal` of an
@@ -1013,6 +1035,38 @@ console.log(await Comment.queryMany({ user: userId, createdAt: { $gt: new Date('
 console.log(await Comment.queryMany({ section: 'thread-123' }))
 ```
 
+### Projected Attributes
+Indexes may have [projected
+attributes](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GSI.html#GSI.Projections),
+which are additional fields included in the index. To specify the projection
+use the `project` option:
+
+```js
+const CommentSchema = ddm.Schema('c', {},
+{
+    index: {
+        // all model attributes are proejcted into the index (ALL projection)
+        aProjectAllIndex: {
+            hashKey: 'field1',
+            project: 'all'
+        },
+
+        // only the index's hash (and possibly sort) keys are included, along with
+        // the table hash key (KEYS_ONLY projection). This is the default if the
+        // 'project' option is omitted:
+        aKeysOnlyIndex: {
+            hashKey: 'field1',
+            project: 'keys'
+        },
+
+        // project the specified fields (INCLUDE projection)
+        aProjecSomeIndex: {
+            hashKey: 'field1',
+            project: ['field2', 'foo', 'bar']
+        },
+    }
+})
+```
 
 ### Caveats for Indexes
 A dynamoDB table supports up to 20 global secondary indexes in the default
