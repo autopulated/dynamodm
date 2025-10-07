@@ -11,8 +11,9 @@ jobs:
     services:
       dynamodb-local:
         image: "amazon/dynamodb-local@sha256:0efb33fe150fade10cac796c835c5fc68cd5b15596a12442e90dfe630c73ec9a"
-        ports
+        ports:
           - 8000:8000
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
