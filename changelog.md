@@ -1,3 +1,6 @@
+## 1.6.1
+ * Fixes to publishing workflow. 1.6.0 was not published.
+
 ## 1.6.0
  * Dependency updates. This release drops support for nodejs <= 19 (not a major
    version bump because these releases are long past EOL).
