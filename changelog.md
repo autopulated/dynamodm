@@ -1,3 +1,8 @@
+## 1.6.0
+ * Dependency updates. This release drops support for nodejs <= 19 (not a major
+   version bump because these releases are long past EOL).
+ * New package publishing workflow with provenance.
+
 ### 1.5.1
  * Fix temporary files included in published package.
 
