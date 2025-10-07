@@ -19,8 +19,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: npm ci
-      - run: npm test
+
+      - name: install deps
+        run: npm ci
+
+      - name: lint
+        run: npm run-script lint
+
+      - name: test
+        run: npm run-script test
+        env:
+          AWS_REGION: eu-west-1
+          AWS_ACCESS_KEY_ID: dummy
+          AWS_SECRET_ACCESS_KEY: dummy
 
   publish-npm:
     environment: publish
