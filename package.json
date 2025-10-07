@@ -1,6 +1,6 @@
 {
   "name": "dynamodm",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "Simple Document mapper for DynamoDB, inspired by mongoose.",
   "main": "index.js",
   "scripts": {
